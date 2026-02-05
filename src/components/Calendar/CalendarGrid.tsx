@@ -16,13 +16,18 @@ interface CalendarGridProps {
 }
 
 export function CalendarGrid({ daysData, config, onDayUpdate }: CalendarGridProps) {
-  const [currentDate, setCurrentDate] = useState(new Date(config.calendarYear, 0, 1));
+  const getInitialDate = (year: number) => {
+    const today = new Date();
+    return today.getFullYear() === year ? today : new Date(year, 0, 1);
+  };
+
+  const [currentDate, setCurrentDate] = useState(getInitialDate(config.calendarYear));
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const [selectedWeek, setSelectedWeek] = useState<{ start: Date; end: Date } | null>(null);
   const calendarYear = config.calendarYear;
 
   useEffect(() => {
-    setCurrentDate(new Date(calendarYear, 0, 1));
+    setCurrentDate(getInitialDate(calendarYear));
   }, [calendarYear]);
 
   const monthStart = startOfMonth(currentDate);

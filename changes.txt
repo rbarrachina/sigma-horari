@@ -1,6 +1,12 @@
 Release notes for sigma-horari
 
 
+Changes v1.3
+---------------------------------------------------------------------------------------
+- Posar el text en vermell quan se superen en un dia les 9h 30min.
+- Mostra el mes actual en accedir a l'aplicació.
+- Mostra un finestra amb els canvis de l'última versió.
+
 Changes v1.2
 ---------------------------------------------------------------------------------------
 - Modificat color de fons de resum diari

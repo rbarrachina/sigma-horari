@@ -4,12 +4,16 @@ import { CalendarGrid } from '@/components/Calendar/CalendarGrid';
 import { SettingsDialog } from '@/components/Settings/SettingsDialog';
 import { useTimeTracking } from '@/hooks/useTimeTracking';
 import { Skeleton } from '@/components/ui/skeleton';
-import { getOnboardingStep, hasStoredUserConfig, saveOnboardingStep } from '@/lib/storage';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
+import { Button } from '@/components/ui/button';
+import { APP_INFO, RELEASE_NOTES } from '@/lib/constants';
+import { getLastSeenVersion, getOnboardingStep, hasStoredUserConfig, saveLastSeenVersion, saveOnboardingStep } from '@/lib/storage';
 
 const Index = () => {
   const { config, daysData, isLoading, updateConfig, updateDayData } = useTimeTracking();
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [onboardingStep, setOnboardingStep] = useState(0);
+  const [showReleaseNotes, setShowReleaseNotes] = useState(false);
   const isOnboarding = onboardingStep > 0;
 
   useEffect(() => {
@@ -23,6 +27,11 @@ const Index = () => {
     setOnboardingStep(nextStep);
     if (nextStep > 0) {
       setSettingsOpen(true);
+    }
+
+    const lastSeenVersion = getLastSeenVersion();
+    if (lastSeenVersion !== APP_INFO.version) {
+      setShowReleaseNotes(true);
     }
   }, [isLoading]);
 
@@ -45,6 +54,11 @@ const Index = () => {
       return;
     }
     setSettingsOpen(false);
+  };
+
+  const handleCloseReleaseNotes = () => {
+    setShowReleaseNotes(false);
+    saveLastSeenVersion(APP_INFO.version);
   };
 
   if (isLoading) {
@@ -83,6 +97,25 @@ const Index = () => {
         )}
         
       </main>
+
+      <Dialog open={showReleaseNotes} onOpenChange={(open) => (!open ? handleCloseReleaseNotes() : null)}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Versió {APP_INFO.version}</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3 text-sm text-muted-foreground">
+            <p className="font-medium text-foreground">Millores:</p>
+            <ul className="list-disc pl-5 space-y-1">
+              {(RELEASE_NOTES[APP_INFO.version] || []).map((item) => (
+                <li key={item}>{item}</li>
+              ))}
+            </ul>
+          </div>
+          <DialogFooter>
+            <Button onClick={handleCloseReleaseNotes}>Tancar</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <SettingsDialog
         open={settingsOpen}
