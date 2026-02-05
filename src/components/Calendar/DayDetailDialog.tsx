@@ -9,7 +9,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Badge } from '@/components/ui/badge';
 import type { DayData, UserConfig, DayStatus, RequestStatus } from '@/types';
 import { getTheoreticalHoursForDate, getDayTypeForDate, calculateWorkedHours, isHoliday, formatHoursToTime, parseTimeToHours, normalizeHoursDifference, capDailyHours } from '@/lib/timeCalculations';
-import { DAY_NAMES_CA, MAX_FLEXIBILITY_HOURS, MONTH_NAMES_CA } from '@/lib/constants';
+import { DAY_NAMES_CA, MAX_DAILY_WORK_HOURS, MAX_FLEXIBILITY_HOURS, MONTH_NAMES_CA } from '@/lib/constants';
 import { Home, Building2, Plus, Trash2 } from 'lucide-react';
 
 interface DayDetailDialogProps {
@@ -139,6 +139,7 @@ export function DayDetailDialog({ date, dayData, config, requestedVacationDays, 
   const totalWorkedHours = absenceType === 'vacances'
     ? rawTotalWorkedHours
     : capDailyHours(rawTotalWorkedHours);
+  const exceedsDailyMax = absenceType !== 'vacances' && rawTotalWorkedHours > MAX_DAILY_WORK_HOURS;
   
   const difference = normalizeHoursDifference(totalWorkedHours - theoreticalHours);
   const holiday = isHoliday(date, config.holidays);
@@ -339,6 +340,11 @@ export function DayDetailDialog({ date, dayData, config, requestedVacationDays, 
                     <Trash2 className="h-4 w-4" />
                   </Button>
                 </div>
+              )}
+              {exceedsDailyMax && (
+                <p className="text-sm text-destructive">
+                  La jornada diària total no pot superar les 9 hores i 30 minuts.
+                </p>
               )}
             </div>
           )}

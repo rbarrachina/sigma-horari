@@ -1,11 +1,12 @@
 import type { UserConfig, DayData, DayType, DayStatus } from '@/types';
-import { DEFAULT_USER_CONFIG } from './constants';
+import { APP_INFO, DEFAULT_USER_CONFIG } from './constants';
 import { getDayTypeForDate } from './timeCalculations';
 import { parseISO } from 'date-fns';
 
 const USER_CONFIG_KEY = 'control-horari-config';
 const DAYS_DATA_KEY = 'control-horari-days';
 const ONBOARDING_STEP_KEY = 'control-horari-onboarding-step';
+const LAST_VERSION_KEY = 'control-horari-last-version';
 
 export function hasStoredUserConfig(): boolean {
   try {
@@ -37,6 +38,23 @@ export function saveOnboardingStep(step: number): void {
     localStorage.setItem(ONBOARDING_STEP_KEY, String(step));
   } catch (error) {
     console.error('Error saving onboarding step:', error);
+  }
+}
+
+export function getLastSeenVersion(): string | null {
+  try {
+    return localStorage.getItem(LAST_VERSION_KEY);
+  } catch (error) {
+    console.error('Error loading last version:', error);
+    return null;
+  }
+}
+
+export function saveLastSeenVersion(version: string): void {
+  try {
+    localStorage.setItem(LAST_VERSION_KEY, version);
+  } catch (error) {
+    console.error('Error saving last version:', error);
   }
 }
 
@@ -208,7 +226,7 @@ export function exportAllData(): ExportData {
     config: getUserConfig(),
     daysData: sanitizedDaysData,
     exportDate: new Date().toISOString(),
-    version: '1.0',
+    version: APP_INFO.version,
   };
 }
 

@@ -114,5 +114,30 @@ export const APP_INFO = {
   author: 'Rafa Barrachina',
   license: 'Apache License 2.0',
   year: 2026,
-  version: '1.2',
+  version: '1.3',
 };
+
+const parseReleaseNotes = (raw: string): Record<string, string[]> => {
+  const notes: Record<string, string[]> = {};
+  const lines = raw.split(/\r?\n/);
+  let currentVersion: string | null = null;
+
+  for (const line of lines) {
+    const headerMatch = line.match(/^Changes v(.+)$/i);
+    if (headerMatch) {
+      currentVersion = headerMatch[1].trim();
+      notes[currentVersion] = [];
+      continue;
+    }
+    if (!currentVersion) continue;
+    const trimmed = line.trim();
+    if (trimmed.startsWith('- ')) {
+      notes[currentVersion].push(trimmed.slice(2).trim());
+    }
+  }
+
+  return notes;
+};
+
+export const RELEASE_NOTES: Record<string, string[]> = parseReleaseNotes(changesText);
+import changesText from '../../changes.txt?raw';
