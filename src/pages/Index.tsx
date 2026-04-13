@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Header } from '@/components/Header';
 import { CalendarGrid } from '@/components/Calendar/CalendarGrid';
 import { SettingsDialog } from '@/components/Settings/SettingsDialog';
+import { ChartsDialog } from '@/components/ChartsDialog';
 import { useTimeTracking } from '@/hooks/useTimeTracking';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
@@ -11,6 +12,7 @@ import { getLastSeenVersion, getOnboardingStep, hasStoredUserConfig, saveLastSee
 
 const Index = () => {
   const { config, daysData, isLoading, updateConfig, updateDayData } = useTimeTracking();
+  const [chartsOpen, setChartsOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [onboardingStep, setOnboardingStep] = useState(0);
   const [showReleaseNotes, setShowReleaseNotes] = useState(false);
@@ -77,6 +79,7 @@ const Index = () => {
       <Header
         config={config}
         daysData={daysData}
+        onOpenCharts={() => setChartsOpen(true)}
         onOpenSettings={() => setSettingsOpen(true)}
       />
       
@@ -124,6 +127,13 @@ const Index = () => {
         onSave={updateConfig}
         onboardingStep={onboardingStep}
         onOnboardingStepChange={handleOnboardingStepChange}
+      />
+
+      <ChartsDialog
+        open={chartsOpen}
+        config={config}
+        daysData={daysData}
+        onClose={() => setChartsOpen(false)}
       />
     </div>
   );

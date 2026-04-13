@@ -1,6 +1,17 @@
 Release notes for sigma-horari
 
 
+Changes v1.4
+---------------------------------------------------------------------------------------
+- Nova secció de Gràfics amb icona pròpia al costat de Configuració.
+- Gràfic de balanç mensual (hores treballades vs teòriques) amb diferència mensual.
+- Càlcul del balanç mensual limitat als dies fins a la data actual.
+- Pestanyes dins la finestra de gràfics i posició de la finestra estabilitzada.
+- Histograma d'horari presencial (entrades i sortides) en intervals de 5 minuts.
+- L'histograma mostra sempre la franja de 07:00 a 19:30 i tooltip amb interval complet (ex: 08:00 - 08:04).
+- Gràfic circular de distribució de jornades amb resum de dies i percentatges.
+- Millores visuals dels gràfics (paleta de colors i etiquetes en català).
+
 Changes v1.3
 ---------------------------------------------------------------------------------------
 - Posar el text en vermell quan se superen en un dia les 9h 30min.
