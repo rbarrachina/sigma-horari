@@ -114,7 +114,7 @@ export const APP_INFO = {
   author: 'Rafa Barrachina',
   license: 'Apache License 2.0',
   year: 2026,
-  version: '1.3',
+  version: '1.4',
 };
 
 const parseReleaseNotes = (raw: string): Record<string, string[]> => {

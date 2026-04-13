@@ -1,17 +1,18 @@
 import { Button } from '@/components/ui/button';
 import { Legend } from '@/components/Legend';
 import { StatusSummary } from '@/components/Summary/StatusSummary';
-import { Settings } from 'lucide-react';
+import { BarChart3, Settings } from 'lucide-react';
 import controlHorariLogo from '@/assets/control-horari-logo.svg';
 import type { DayData, UserConfig } from '@/types';
 
 interface HeaderProps {
   config: UserConfig;
   daysData: Record<string, DayData>;
+  onOpenCharts: () => void;
   onOpenSettings: () => void;
 }
 
-export function Header({ config, daysData, onOpenSettings }: HeaderProps) {
+export function Header({ config, daysData, onOpenCharts, onOpenSettings }: HeaderProps) {
   const userName = config.firstName 
     ? config.firstName
     : 'Usuari';
@@ -38,6 +39,14 @@ export function Header({ config, daysData, onOpenSettings }: HeaderProps) {
           </div>
 
           <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="icon"
+              onClick={onOpenCharts}
+              aria-label="Gràfics"
+            >
+              <BarChart3 className="w-4 h-4" />
+            </Button>
             <Button
               variant="outline"
               size="icon"
