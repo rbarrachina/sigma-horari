@@ -90,6 +90,11 @@ export function SettingsDialog({
     endString: format(new Date(year, 11, 31), 'yyyy-MM-dd'),
   });
 
+  const getHolidayBounds = (year: number) => ({
+    startString: format(new Date(year, 0, 1), 'yyyy-MM-dd'),
+    endString: format(new Date(year + 1, 0, 31), 'yyyy-MM-dd'),
+  });
+
   const shiftDateToYear = (date: string, year: number) => {
     const parsed = parseISO(date);
     const monthIndex = parsed.getMonth();
@@ -151,6 +156,7 @@ export function SettingsDialog({
   const sortedSchedulePeriods = sortSchedulePeriods(localConfig.schedulePeriods);
   const scheduleValidation = validateScheduleCoverage(sortedSchedulePeriods);
   const yearBounds = getYearBounds(localConfig.calendarYear);
+  const holidayBounds = getHolidayBounds(localConfig.calendarYear);
 
   const handleSave = () => {
     if (!scheduleValidation.isValid) {
@@ -255,7 +261,8 @@ export function SettingsDialog({
   };
 
   const addHoliday = () => {
-    if (newHoliday && !localConfig.holidays.includes(newHoliday)) {
+    const isWithinHolidayBounds = newHoliday >= holidayBounds.startString && newHoliday <= holidayBounds.endString;
+    if (newHoliday && isWithinHolidayBounds && !localConfig.holidays.includes(newHoliday)) {
       setLocalConfig(prev => ({
         ...prev,
         holidays: [...prev.holidays, newHoliday].sort(),
@@ -584,8 +591,8 @@ export function SettingsDialog({
                 type="date"
                 value={newHoliday}
                 onChange={(e) => setNewHoliday(e.target.value)}
-                min={yearBounds.startString}
-                max={yearBounds.endString}
+                min={holidayBounds.startString}
+                max={holidayBounds.endString}
               />
               <Button onClick={addHoliday} size="icon">
                 <Plus className="w-4 h-4" />
@@ -599,6 +606,7 @@ export function SettingsDialog({
                   <div key={holiday} className="flex items-center justify-between p-2 bg-muted rounded-lg">
                     <span>
                       {format(date, 'd')} de {MONTH_NAMES_CA[date.getMonth()]}
+                      {date.getFullYear() !== localConfig.calendarYear ? ` de ${date.getFullYear()}` : ''}
                     </span>
                     <Button
                       variant="ghost"
