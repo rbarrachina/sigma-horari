@@ -37,6 +37,7 @@ export function DayDetailDialog({ date, dayData, config, requestedVacationDays, 
   const [otherComment, setOtherComment] = useState('');
   const [vacationError, setVacationError] = useState('');
   const [apError, setApError] = useState('');
+  const [dateRuleError, setDateRuleError] = useState('');
 
   const theoreticalHours = date ? getTheoreticalHoursForDate(date, config) : 0;
 
@@ -110,6 +111,7 @@ export function DayDetailDialog({ date, dayData, config, requestedVacationDays, 
     }
     setVacationError('');
     setApError('');
+    setDateRuleError('');
   }, [dayData, config, date]);
 
   if (!date) return null;
@@ -143,6 +145,13 @@ export function DayDetailDialog({ date, dayData, config, requestedVacationDays, 
   
   const difference = normalizeHoursDifference(totalWorkedHours - theoreticalHours);
   const holiday = isHoliday(date, config.holidays);
+  const isCalendarYear = date.getFullYear() === config.calendarYear;
+  const isNextYearJanuary = date.getFullYear() === config.calendarYear + 1 && date.getMonth() === 0;
+  const januaryDay = date.getDate();
+  const canUseVacation = isCalendarYear;
+  const canUseAP = isCalendarYear || isNextYearJanuary;
+  const isAPExceptionalPeriod = isNextYearJanuary && januaryDay > 15;
+  const canUseFlexibility = isCalendarYear || (isNextYearJanuary && januaryDay <= 15);
 
   const getDayName = () => {
     const dayIndex = date.getDay();
@@ -174,7 +183,26 @@ export function DayDetailDialog({ date, dayData, config, requestedVacationDays, 
     return absenceHours + (absenceMinutes / 60);
   };
 
+  const getDateRuleError = (nextAbsenceType: AbsenceType): string => {
+    if (nextAbsenceType === 'vacances' && !canUseVacation) {
+      return 'Els dies de vacances només es poden fer servir fins al 31 de desembre.';
+    }
+    if (nextAbsenceType === 'assumpte_propi' && !canUseAP) {
+      return 'Els assumptes personals només es poden fer servir fins al 31 de gener de l’any següent.';
+    }
+    if (nextAbsenceType === 'flexibilitat' && !canUseFlexibility) {
+      return 'La flexibilitat horària només es pot fer servir fins al 15 de gener de l’any següent.';
+    }
+    return '';
+  };
+
   const handleSave = () => {
+    const ruleError = getDateRuleError(absenceType);
+    if (ruleError) {
+      setDateRuleError(ruleError);
+      return;
+    }
+
     const isCurrentlyVacation = dayData?.dayStatus === 'vacances';
     const effectiveRequestedVacations = requestedVacationDays - (isCurrentlyVacation ? 1 : 0);
     const exceedsVacationLimit = absenceType === 'vacances' && !isCurrentlyVacation
@@ -372,7 +400,9 @@ export function DayDetailDialog({ date, dayData, config, requestedVacationDays, 
           <div className="space-y-3">
             <Label>Absència</Label>
             <Select value={absenceType} onValueChange={(v) => {
-              setAbsenceType(v as AbsenceType);
+              const nextAbsenceType = v as AbsenceType;
+              setAbsenceType(nextAbsenceType);
+              setDateRuleError(getDateRuleError(nextAbsenceType));
               if (v !== 'vacances') {
                 setVacationError('');
               } else if (dayData?.dayStatus !== 'vacances' && requestedVacationDays >= config.totalVacationDays) {
@@ -397,12 +427,20 @@ export function DayDetailDialog({ date, dayData, config, requestedVacationDays, 
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="cap">Cap absència</SelectItem>
-                <SelectItem value="vacances">Vacances</SelectItem>
-                <SelectItem value="assumpte_propi">Assumpte propi (AP)</SelectItem>
-                <SelectItem value="flexibilitat">Flexibilitat horària (FX)</SelectItem>
+                <SelectItem value="vacances" disabled={!canUseVacation}>Vacances</SelectItem>
+                <SelectItem value="assumpte_propi" disabled={!canUseAP}>Assumpte propi (AP)</SelectItem>
+                <SelectItem value="flexibilitat" disabled={!canUseFlexibility}>Flexibilitat horària (FX)</SelectItem>
                 <SelectItem value="altres">Altres</SelectItem>
               </SelectContent>
             </Select>
+            {dateRuleError && (
+              <p className="text-sm text-destructive">{dateRuleError}</p>
+            )}
+            {absenceType === 'assumpte_propi' && isAPExceptionalPeriod && (
+              <p className="text-sm text-muted-foreground">
+                Del 16 al 31 de gener els AP només s’han de fer servir excepcionalment si no s’han pogut fer per necessitats del servei.
+              </p>
+            )}
             {vacationError && (
               <p className="text-sm text-destructive">{vacationError}</p>
             )}

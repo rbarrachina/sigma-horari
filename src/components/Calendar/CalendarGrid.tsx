@@ -18,7 +18,9 @@ interface CalendarGridProps {
 export function CalendarGrid({ daysData, config, onDayUpdate }: CalendarGridProps) {
   const getInitialDate = (year: number) => {
     const today = new Date();
-    return today.getFullYear() === year ? today : new Date(year, 0, 1);
+    const isInVisibleRange = today.getFullYear() === year
+      || (today.getFullYear() === year + 1 && today.getMonth() === 0);
+    return isInVisibleRange ? today : new Date(year, 0, 1);
   };
 
   const [currentDate, setCurrentDate] = useState(getInitialDate(config.calendarYear));
@@ -36,6 +38,10 @@ export function CalendarGrid({ daysData, config, onDayUpdate }: CalendarGridProp
   const calendarEnd = endOfWeek(monthEnd, { weekStartsOn: 1 });
   
   const days = eachDayOfInterval({ start: calendarStart, end: calendarEnd });
+  const isInEditableCalendarRange = (date: Date) => {
+    return date.getFullYear() === calendarYear
+      || (date.getFullYear() === calendarYear + 1 && date.getMonth() === 0);
+  };
 
   const goToPreviousMonth = () => {
     const newDate = subMonths(currentDate, 1);
@@ -46,7 +52,7 @@ export function CalendarGrid({ daysData, config, onDayUpdate }: CalendarGridProp
 
   const goToNextMonth = () => {
     const newDate = addMonths(currentDate, 1);
-    if (newDate.getFullYear() <= calendarYear) {
+    if (isInEditableCalendarRange(newDate)) {
       setCurrentDate(newDate);
     }
   };
@@ -89,7 +95,7 @@ export function CalendarGrid({ daysData, config, onDayUpdate }: CalendarGridProp
           variant="outline"
           size="icon"
           onClick={goToNextMonth}
-          disabled={currentDate.getMonth() === 11 && currentDate.getFullYear() === calendarYear}
+          disabled={currentDate.getMonth() === 0 && currentDate.getFullYear() === calendarYear + 1}
         >
           <ChevronRight className="h-4 w-4" />
         </Button>
@@ -115,7 +121,7 @@ export function CalendarGrid({ daysData, config, onDayUpdate }: CalendarGridProp
             <div key={weekIndex} className="grid grid-cols-8 gap-2">
               {week.map((day) => {
                 const dateStr = format(day, 'yyyy-MM-dd');
-                const isInCalendarYear = day.getFullYear() === calendarYear;
+                const isInCalendarYear = isInEditableCalendarRange(day);
                 return (
                   <CalendarDay
                     key={dateStr}

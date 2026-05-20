@@ -1,6 +1,14 @@
 Release notes for sigma-horari
 
 
+Changes v1.5
+---------------------------------------------------------------------------------------
+- El calendari permet navegar fins al mes de gener de l'any següent.
+- Els dies de gener de l'any següent es poden editar des del calendari.
+- Les vacances només es poden fer servir fins al 31 de desembre.
+- Els assumptes personals es poden fer servir fins al 15 de gener i, excepcionalment, fins al 31 de gener per necessitats del servei.
+- La flexibilitat horària només es pot fer servir fins al 15 de gener de l'any següent.
+
 Changes v1.4
 ---------------------------------------------------------------------------------------
 - Nova secció de Gràfics amb icona pròpia al costat de Configuració.
