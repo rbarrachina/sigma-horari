@@ -30,10 +30,23 @@ Aplicació **operativa** amb configuració inicial guiada i calendari interactiu
 - Definició de dies **presencials** i de **teletreball** per setmana
 - Franges **estiu/hivern** amb períodes configurables que cobreixen tot l’any
 - Calendari anual amb detall per dia (inici/fi, doble torn, notes)
+- Navegació fins al gener de l'any següent per gestionar incidències que es poden arrossegar
 - Estats de dia: laboral, festiu, vacances, assumptes propis, flexibilitat i altres
 - Resums setmanals amb còmput d’hores i flexibilitat guanyada
 - Gestió de **flexibilitat** (acumulada fins a 25h) i consum per dia
 - Exportació / importació (JSON) i **reset** complet de dades
+
+---
+
+## 🆕 Versió 1.5
+
+La versió **1.5** afegeix el mes de **gener de l'any següent** al calendari per poder gestionar conceptes que es poden aplicar més enllà del 31 de desembre.
+
+Condicions aplicades:
+
+- **Vacances:** només es poden fer servir fins al **31 de desembre** de l'any del calendari.
+- **Assumptes personals (AP):** es poden fer servir fins al **15 de gener** de l'any següent i, excepcionalment, fins al **31 de gener** si no s'han pogut fer per necessitats del servei.
+- **Flexibilitat horària:** es pot fer servir fins al **15 de gener** de l'any següent com a màxim.
 
 ---
 
@@ -113,5 +126,6 @@ Aquest projecte es distribueix sota la **Apache License 2.0**.
 - Atribució: `NOTICE` (crèdits i avisos)
 
 Autoria: **Rafa Barrachina** (GitHub: `@rbarrachina`)
+Versió actual: **1.5**
 
 Si redistribueixes el projecte (o una derivació), cal conservar aquests avisos i el crèdit de l’autor.
