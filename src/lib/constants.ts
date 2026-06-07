@@ -80,6 +80,7 @@ export const DEFAULT_USER_CONFIG = {
   usedAPHours: 0,
   flexibilityHours: 0,
   usedFlexHours: 0,
+  otherNotes: '',
   holidays: BARCELONA_HOLIDAYS_2026,
 };
 
@@ -114,7 +115,7 @@ export const APP_INFO = {
   author: 'Rafa Barrachina',
   license: 'Apache License 2.0',
   year: 2026,
-  version: '1.5',
+  version: '1.6',
 };
 
 const parseReleaseNotes = (raw: string): Record<string, string[]> => {

@@ -83,6 +83,9 @@ export function getUserConfig(): UserConfig {
       if (typeof parsed.usedFlexHours !== 'number') {
         parsed.usedFlexHours = DEFAULT_USER_CONFIG.usedFlexHours;
       }
+      if (typeof parsed.otherNotes !== 'string') {
+        parsed.otherNotes = DEFAULT_USER_CONFIG.otherNotes;
+      }
       return parsed;
     }
   } catch (error) {

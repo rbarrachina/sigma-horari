@@ -8,11 +8,12 @@ import type { DayData, UserConfig } from '@/types';
 interface HeaderProps {
   config: UserConfig;
   daysData: Record<string, DayData>;
+  onConfigUpdate: (config: UserConfig) => void;
   onOpenCharts: () => void;
   onOpenSettings: () => void;
 }
 
-export function Header({ config, daysData, onOpenCharts, onOpenSettings }: HeaderProps) {
+export function Header({ config, daysData, onConfigUpdate, onOpenCharts, onOpenSettings }: HeaderProps) {
   const userName = config.firstName 
     ? config.firstName
     : 'Usuari';
@@ -35,7 +36,12 @@ export function Header({ config, daysData, onOpenCharts, onOpenSettings }: Heade
                 </p>
               </div>
             </div>
-            <StatusSummary config={config} daysData={daysData} variant="compact" />
+            <StatusSummary
+              config={config}
+              daysData={daysData}
+              variant="compact"
+              onConfigUpdate={onConfigUpdate}
+            />
           </div>
 
           <div className="flex items-center gap-2">

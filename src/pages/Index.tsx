@@ -79,6 +79,7 @@ const Index = () => {
       <Header
         config={config}
         daysData={daysData}
+        onConfigUpdate={updateConfig}
         onOpenCharts={() => setChartsOpen(true)}
         onOpenSettings={() => setSettingsOpen(true)}
       />
