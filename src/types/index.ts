@@ -47,6 +47,7 @@ export interface UserConfig {
   usedAPHours: number;
   flexibilityHours: number; // Accumulated (max 25)
   usedFlexHours: number; // Used from accumulated
+  otherNotes: string; // Free-form notes for pending schedule-related items
   holidays: string[]; // Array of YYYY-MM-DD
 }
 

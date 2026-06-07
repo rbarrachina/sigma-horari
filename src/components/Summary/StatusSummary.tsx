@@ -1,8 +1,10 @@
 import { useMemo, useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Progress } from '@/components/ui/progress';
-import { Plane, Clock, Sparkles } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Textarea } from '@/components/ui/textarea';
+import { Plane, Clock, Sparkles, NotebookText } from 'lucide-react';
 import { MAX_FLEXIBILITY_HOURS, MONTH_NAMES_CA } from '@/lib/constants';
 import type { DayData, UserConfig } from '@/types';
 import { format, parseISO } from 'date-fns';
@@ -11,12 +13,15 @@ interface StatusSummaryProps {
   config: UserConfig;
   daysData: Record<string, DayData>;
   variant?: 'default' | 'compact';
+  onConfigUpdate?: (config: UserConfig) => void;
 }
 
-export function StatusSummary({ config, daysData, variant = 'default' }: StatusSummaryProps) {
+export function StatusSummary({ config, daysData, variant = 'default', onConfigUpdate }: StatusSummaryProps) {
   const [vacationDialogOpen, setVacationDialogOpen] = useState(false);
   const [apDialogOpen, setApDialogOpen] = useState(false);
   const [flexDialogOpen, setFlexDialogOpen] = useState(false);
+  const [otherDialogOpen, setOtherDialogOpen] = useState(false);
+  const [otherNotesDraft, setOtherNotesDraft] = useState(config.otherNotes || '');
   const formatDuration = (hours: number): string => {
     const wholeHours = Math.floor(hours);
     let minutes = Math.round((hours % 1) * 60);
@@ -127,6 +132,25 @@ export function StatusSummary({ config, daysData, variant = 'default' }: StatusS
   };
   const formatAPHours = (hours: number | undefined) => formatDuration(hours || 0);
   const formatFlexHours = (hours: number | undefined) => formatDuration(hours || 0);
+  const hasOtherNotes = config.otherNotes.trim().length > 0;
+  const openOtherDialog = () => {
+    setOtherNotesDraft(config.otherNotes || '');
+    setOtherDialogOpen(true);
+  };
+  const handleOtherDialogOpenChange = (open: boolean) => {
+    if (open) {
+      openOtherDialog();
+      return;
+    }
+    setOtherDialogOpen(false);
+  };
+  const handleSaveOtherNotes = () => {
+    onConfigUpdate?.({
+      ...config,
+      otherNotes: otherNotesDraft.trimEnd(),
+    });
+    setOtherDialogOpen(false);
+  };
   const summaryItems = [
     {
       key: 'vacances',
@@ -311,6 +335,45 @@ export function StatusSummary({ config, daysData, variant = 'default' }: StatusS
       </DialogContent>
     </Dialog>
   );
+  const otherDialog = (
+    <Dialog open={otherDialogOpen} onOpenChange={handleOtherDialogOpenChange}>
+      <DialogContent className="sm:max-w-lg">
+        <DialogHeader>
+          <DialogTitle>Altres</DialogTitle>
+        </DialogHeader>
+        <div className="space-y-2">
+          <Textarea
+            value={otherNotesDraft}
+            onChange={(event) => setOtherNotesDraft(event.target.value)}
+            maxLength={1000}
+            rows={10}
+            className="placeholder:text-muted-foreground/50"
+            placeholder="Anota aquí aspectes pendents de l'horari."
+          />
+          <p className="text-xs text-muted-foreground text-right">
+            {otherNotesDraft.length}/1000
+          </p>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={() => setOtherDialogOpen(false)}>
+            Cancel·lar
+          </Button>
+          <Button onClick={handleSaveOtherNotes}>
+            Desar
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+  const otherCompactContent = (
+    <div className="flex items-center gap-2 rounded-lg border border-border bg-card/60 px-3 py-2 shadow-sm">
+      <NotebookText className="w-4 h-4 text-orange-500" />
+      <span className="text-sm font-medium text-foreground">Altres</span>
+      {hasOtherNotes && (
+        <span className="text-xs font-medium text-muted-foreground">(notes)</span>
+      )}
+    </div>
+  );
 
   if (variant === 'compact') {
     return (
@@ -318,6 +381,7 @@ export function StatusSummary({ config, daysData, variant = 'default' }: StatusS
         {vacationDialog}
         {apDialog}
         {flexDialog}
+        {otherDialog}
         <div className="flex flex-wrap items-center gap-3">
           {summaryItems.map((item) => {
             const Icon = item.icon;
@@ -373,6 +437,13 @@ export function StatusSummary({ config, daysData, variant = 'default' }: StatusS
             }
             return <div key={item.key}>{content}</div>;
           })}
+          <button
+            type="button"
+            onClick={openOtherDialog}
+            className="text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+          >
+            {otherCompactContent}
+          </button>
         </div>
       </>
     );
@@ -383,7 +454,8 @@ export function StatusSummary({ config, daysData, variant = 'default' }: StatusS
       {vacationDialog}
       {apDialog}
       {flexDialog}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      {otherDialog}
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         {summaryItems.map((item) => {
           const Icon = item.icon;
           const content = (
@@ -446,6 +518,28 @@ export function StatusSummary({ config, daysData, variant = 'default' }: StatusS
           }
           return <div key={item.key}>{content}</div>;
         })}
+        <button
+          type="button"
+          onClick={openOtherDialog}
+          className="text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+        >
+          <Card>
+            <CardHeader className="pb-2 space-y-1">
+              <div className="flex items-center justify-between gap-4">
+                <CardTitle className="text-sm font-medium flex items-center gap-2">
+                  <NotebookText className="w-4 h-4 text-orange-500" />
+                  Altres
+                </CardTitle>
+                <div className="text-base font-semibold">
+                  {hasOtherNotes ? '(notes)' : 'Sense notes'}
+                </div>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Anotacions lliures de l'horari
+              </p>
+            </CardHeader>
+          </Card>
+        </button>
       </div>
     </>
   );

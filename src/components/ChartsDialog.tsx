@@ -1,12 +1,13 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { Bar, BarChart, CartesianGrid, Cell, Pie, PieChart, XAxis, YAxis } from 'recharts';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { ChartContainer, ChartLegend, ChartLegendContent, ChartTooltip, ChartTooltipContent, type ChartConfig } from '@/components/ui/chart';
 import { MONTH_NAMES_CA } from '@/lib/constants';
-import { calculateTotalWorkedHours, formatHoursMinutes, getDayTypeForDate, getTheoreticalHoursForDate, isHoliday, isWeekend, normalizeHoursDifference } from '@/lib/timeCalculations';
+import { calculateDayWorkedHours, calculateTotalWorkedHours, formatHoursMinutes, getDayTypeForDate, getTheoreticalHoursForDate, isHoliday, isWeekend, normalizeHoursDifference } from '@/lib/timeCalculations';
 import type { DayData, UserConfig } from '@/types';
 import { eachDayOfInterval, format } from 'date-fns';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
 interface ChartsDialogProps {
@@ -70,6 +71,9 @@ const PRESENCE_TOOLTIP_LABELS: Record<'entries' | 'exits', string> = {
   exits: 'Sortides',
 };
 
+type DistributionKey = keyof typeof distributionChartConfig;
+type DistributionMode = 'days' | 'hours';
+
 const timeToSlotIndex = (time: string): number | null => {
   const [hoursStr, minutesStr] = time.split(':');
   const hours = Number(hoursStr);
@@ -111,6 +115,7 @@ type DistributionItem = {
 };
 
 export function ChartsDialog({ open, config, daysData, onClose }: ChartsDialogProps) {
+  const [distributionMode, setDistributionMode] = useState<DistributionMode>('days');
   const monthlyBalance = useMemo<MonthlyBalanceItem[]>(() => {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
@@ -216,7 +221,7 @@ export function ChartsDialog({ open, config, daysData, onClose }: ChartsDialogPr
     };
   }, [config.calendarYear, daysData]);
 
-  const dayTypeDistribution = useMemo<DistributionItem[]>(() => {
+  const distributionByDays = useMemo<DistributionItem[]>(() => {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     const start = new Date(config.calendarYear, 0, 1);
@@ -243,25 +248,24 @@ export function ChartsDialog({ open, config, daysData, onClose }: ChartsDialogPr
       const dateKey = format(day, 'yyyy-MM-dd');
       const dayData = daysData[dateKey];
 
-      if (dayData?.dayStatus === 'vacances') {
-        counters.vacances += 1;
-        continue;
-      }
-      if (dayData?.dayStatus === 'assumpte_propi') {
-        counters.assumpte_propi += 1;
-        continue;
-      }
-      if (dayData?.dayStatus === 'flexibilitat') {
-        counters.flexibilitat += 1;
-        continue;
-      }
-      if (dayData?.dayStatus === 'altres') {
-        counters.altres += 1;
-        continue;
-      }
-
       const resolvedDayType = dayData?.dayType ?? getDayTypeForDate(day, config);
-      counters[resolvedDayType] += 1;
+      const workedHours = dayData
+        ? calculateDayWorkedHours(dayData)
+        : getTheoreticalHoursForDate(day, config);
+      const theoreticalHours = getTheoreticalHoursForDate(day, config);
+      const conceptHours: Record<DistributionKey, number> = {
+        presencial: resolvedDayType === 'presencial' ? workedHours : 0,
+        teletreball: resolvedDayType === 'teletreball' ? workedHours : 0,
+        vacances: dayData?.dayStatus === 'vacances' ? theoreticalHours : 0,
+        assumpte_propi: dayData?.dayStatus === 'assumpte_propi' ? (dayData.apHours || 0) : 0,
+        flexibilitat: dayData?.dayStatus === 'flexibilitat' ? (dayData.flexHours || 0) : 0,
+        altres: dayData?.dayStatus === 'altres' ? (dayData.otherHours || 0) : 0,
+      };
+      const dominantConcept = (Object.keys(conceptHours) as DistributionKey[]).reduce(
+        (dominant, key) => conceptHours[key] > conceptHours[dominant] ? key : dominant,
+        resolvedDayType
+      );
+      counters[dominantConcept] += 1;
     }
 
     return (Object.keys(distributionChartConfig) as Array<keyof typeof distributionChartConfig>)
@@ -274,7 +278,76 @@ export function ChartsDialog({ open, config, daysData, onClose }: ChartsDialogPr
       .filter((item) => item.value > 0);
   }, [config, daysData]);
 
+  const distributionByHours = useMemo<DistributionItem[]>(() => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const start = new Date(config.calendarYear, 0, 1);
+    const end = new Date(config.calendarYear, 11, 31);
+    const intervalEnd = end > today ? today : end;
+    if (intervalEnd < start) {
+      return [];
+    }
+
+    const counters: Record<DistributionKey, number> = {
+      presencial: 0,
+      teletreball: 0,
+      vacances: 0,
+      assumpte_propi: 0,
+      flexibilitat: 0,
+      altres: 0,
+    };
+
+    for (const day of eachDayOfInterval({ start, end: intervalEnd })) {
+      if (isWeekend(day) || isHoliday(day, config.holidays)) {
+        continue;
+      }
+
+      const dateKey = format(day, 'yyyy-MM-dd');
+      const dayData = daysData[dateKey];
+      const resolvedDayType = dayData?.dayType ?? getDayTypeForDate(day, config);
+      const theoreticalHours = getTheoreticalHoursForDate(day, config);
+
+      if (!dayData) {
+        counters[resolvedDayType] += theoreticalHours;
+        continue;
+      }
+
+      if (dayData.dayStatus === 'vacances') {
+        counters.vacances += theoreticalHours;
+        continue;
+      }
+
+      counters[resolvedDayType] += calculateDayWorkedHours(dayData);
+
+      if (dayData.dayStatus === 'assumpte_propi') {
+        counters.assumpte_propi += dayData.apHours || 0;
+      }
+      if (dayData.dayStatus === 'flexibilitat') {
+        counters.flexibilitat += dayData.flexHours || 0;
+      }
+      if (dayData.dayStatus === 'altres') {
+        counters.altres += dayData.otherHours || 0;
+      }
+    }
+
+    return (Object.keys(distributionChartConfig) as DistributionKey[])
+      .map((key) => ({
+        key,
+        label: distributionChartConfig[key].label as string,
+        value: counters[key],
+        fill: distributionChartConfig[key].color as string,
+      }))
+      .filter((item) => item.value > 0);
+  }, [config, daysData]);
+
+  const dayTypeDistribution = distributionMode === 'days' ? distributionByDays : distributionByHours;
   const distributionTotal = dayTypeDistribution.reduce((acc, item) => acc + item.value, 0);
+  const formatDistributionValue = (value: number) => {
+    if (distributionMode === 'hours') {
+      return formatHoursMinutes(value);
+    }
+    return `${value} ${value === 1 ? 'dia' : 'dies'}`;
+  };
 
   return (
     <Dialog open={open} onOpenChange={(nextOpen) => (!nextOpen ? onClose() : null)}>
@@ -287,7 +360,7 @@ export function ChartsDialog({ open, config, daysData, onClose }: ChartsDialogPr
           <TabsList className="grid h-auto w-full grid-cols-1 gap-2 sm:grid-cols-3">
             <TabsTrigger value="monthly-balance">Balanç mensual</TabsTrigger>
             <TabsTrigger value="weekly-evolution">Horari presencial</TabsTrigger>
-            <TabsTrigger value="distribution">Distribució de jornades</TabsTrigger>
+            <TabsTrigger value="distribution">Distribució</TabsTrigger>
           </TabsList>
 
           <TabsContent value="monthly-balance" className="space-y-4">
@@ -413,7 +486,29 @@ export function ChartsDialog({ open, config, daysData, onClose }: ChartsDialogPr
 
           <TabsContent value="distribution">
             <section className="space-y-4">
-              <h3 className="text-center text-sm font-medium text-muted-foreground">Distribució de jornades</h3>
+              <div className="flex flex-wrap items-center justify-center gap-3">
+                <h3 className="text-sm font-medium text-muted-foreground">Distribució</h3>
+                <div className="flex rounded-md border bg-card p-1">
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant={distributionMode === 'days' ? 'default' : 'ghost'}
+                    className="h-7 px-3"
+                    onClick={() => setDistributionMode('days')}
+                  >
+                    Dies
+                  </Button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant={distributionMode === 'hours' ? 'default' : 'ghost'}
+                    className="h-7 px-3"
+                    onClick={() => setDistributionMode('hours')}
+                  >
+                    Hores
+                  </Button>
+                </div>
+              </div>
               {dayTypeDistribution.length > 0 ? (
                 <div className="grid gap-4 lg:grid-cols-[minmax(0,360px)_1fr]">
                   <ChartContainer config={distributionChartConfig} className="h-[320px] w-full aspect-auto">
@@ -425,7 +520,7 @@ export function ChartsDialog({ open, config, daysData, onClose }: ChartsDialogPr
                             formatter={(value, name) => (
                               <>
                                 <span>{name}</span>
-                                <span className="font-medium text-foreground">{Number(value)} dies</span>
+                                <span className="font-medium text-foreground">{formatDistributionValue(Number(value))}</span>
                               </>
                             )}
                           />
@@ -456,7 +551,7 @@ export function ChartsDialog({ open, config, daysData, onClose }: ChartsDialogPr
                             className="border-transparent text-white"
                             style={{ backgroundColor: item.fill }}
                           >
-                            {item.value} dies
+                            {formatDistributionValue(item.value)}
                           </Badge>
                         </div>
                         <p className="mt-1 text-xs text-muted-foreground">

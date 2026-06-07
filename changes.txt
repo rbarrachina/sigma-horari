@@ -1,6 +1,12 @@
 Release notes for sigma-horari
 
 
+Changes v1.6
+---------------------------------------------------------------------------------------
+- Nova caixa "Altres" a la capçalera per guardar anotacions lliures de l'horari.
+- Finestra emergent amb text pla per apuntar compensacions, incidències o recordatoris pendents.
+- El gràfic de distribució permet alternar entre dies i hores.
+
 Changes v1.5
 ---------------------------------------------------------------------------------------
 - El calendari permet navegar fins al mes de gener de l'any següent.

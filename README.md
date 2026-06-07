@@ -34,7 +34,18 @@ Aplicació **operativa** amb configuració inicial guiada i calendari interactiu
 - Estats de dia: laboral, festiu, vacances, assumptes propis, flexibilitat i altres
 - Resums setmanals amb còmput d’hores i flexibilitat guanyada
 - Gestió de **flexibilitat** (acumulada fins a 25h) i consum per dia
+- Caixa **Altres** per guardar anotacions lliures relacionades amb l'horari
 - Exportació / importació (JSON) i **reset** complet de dades
+
+---
+
+## 🆕 Versió 1.6
+
+La versió **1.6** afegeix una caixa **Altres** a la capçalera de l'aplicació.
+
+Permet escriure anotacions en text pla sobre aspectes de l'horari que encara no tenen un dia concret assignat, com compensacions pendents, jornades especials o recordatoris vinculats al control horari.
+
+També millora el gràfic de **Distribució**, que ara permet alternar entre una vista per **dies** i una vista per **hores**.
 
 ---
 
@@ -126,6 +137,6 @@ Aquest projecte es distribueix sota la **Apache License 2.0**.
 - Atribució: `NOTICE` (crèdits i avisos)
 
 Autoria: **Rafa Barrachina** (GitHub: `@rbarrachina`)
-Versió actual: **1.5**
+Versió actual: **1.6**
 
 Si redistribueixes el projecte (o una derivació), cal conservar aquests avisos i el crèdit de l’autor.
