@@ -4,11 +4,13 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { ChartContainer, ChartLegend, ChartLegendContent, ChartTooltip, ChartTooltipContent, type ChartConfig } from '@/components/ui/chart';
 import { MONTH_NAMES_CA } from '@/lib/constants';
 import { calculateDayWorkedHours, calculateTotalWorkedHours, formatHoursMinutes, getDayTypeForDate, getTheoreticalHoursForDate, isHoliday, isWeekend, normalizeHoursDifference } from '@/lib/timeCalculations';
+import { calculateMonthlyFlexibility } from '@/lib/monthlyFlexibility';
 import type { DayData, UserConfig } from '@/types';
 import { eachDayOfInterval, format } from 'date-fns';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { getAbsenceHours, hasAbsence } from '@/lib/absences';
 
 interface ChartsDialogProps {
   open: boolean;
@@ -58,6 +60,7 @@ type MonthlyBalanceItem = {
   worked: number;
   theoretical: number;
   difference: number;
+  flexibility: number;
   isFutureMonth: boolean;
 };
 
@@ -119,6 +122,12 @@ export function ChartsDialog({ open, config, daysData, onClose }: ChartsDialogPr
   const monthlyBalance = useMemo<MonthlyBalanceItem[]>(() => {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
+    const monthlyFlexibility = calculateMonthlyFlexibility(
+      config.calendarYear,
+      daysData,
+      config,
+      today
+    );
 
     return MONTH_NAMES_CA.map((month, monthIndex) => {
       const monthStart = new Date(config.calendarYear, monthIndex, 1);
@@ -128,6 +137,7 @@ export function ChartsDialog({ open, config, daysData, onClose }: ChartsDialogPr
           worked: 0,
           theoretical: 0,
           difference: 0,
+          flexibility: 0,
           isFutureMonth: true,
         };
       }
@@ -148,7 +158,7 @@ export function ChartsDialog({ open, config, daysData, onClose }: ChartsDialogPr
           continue;
         }
 
-        if (dayData?.dayStatus === 'vacances') {
+        if (hasAbsence(dayData, 'vacances')) {
           continue;
         }
 
@@ -161,6 +171,7 @@ export function ChartsDialog({ open, config, daysData, onClose }: ChartsDialogPr
         worked,
         theoretical,
         difference: normalizeHoursDifference(worked - theoretical),
+        flexibility: monthlyFlexibility[monthIndex],
         isFutureMonth: false,
       };
     });
@@ -256,10 +267,10 @@ export function ChartsDialog({ open, config, daysData, onClose }: ChartsDialogPr
       const conceptHours: Record<DistributionKey, number> = {
         presencial: resolvedDayType === 'presencial' ? workedHours : 0,
         teletreball: resolvedDayType === 'teletreball' ? workedHours : 0,
-        vacances: dayData?.dayStatus === 'vacances' ? theoreticalHours : 0,
-        assumpte_propi: dayData?.dayStatus === 'assumpte_propi' ? (dayData.apHours || 0) : 0,
-        flexibilitat: dayData?.dayStatus === 'flexibilitat' ? (dayData.flexHours || 0) : 0,
-        altres: dayData?.dayStatus === 'altres' ? (dayData.otherHours || 0) : 0,
+        vacances: hasAbsence(dayData, 'vacances') ? theoreticalHours : 0,
+        assumpte_propi: getAbsenceHours(dayData, 'assumpte_propi'),
+        flexibilitat: getAbsenceHours(dayData, 'flexibilitat'),
+        altres: getAbsenceHours(dayData, 'altres'),
       };
       const dominantConcept = (Object.keys(conceptHours) as DistributionKey[]).reduce(
         (dominant, key) => conceptHours[key] > conceptHours[dominant] ? key : dominant,
@@ -312,22 +323,16 @@ export function ChartsDialog({ open, config, daysData, onClose }: ChartsDialogPr
         continue;
       }
 
-      if (dayData.dayStatus === 'vacances') {
+      if (hasAbsence(dayData, 'vacances')) {
         counters.vacances += theoreticalHours;
         continue;
       }
 
       counters[resolvedDayType] += calculateDayWorkedHours(dayData);
 
-      if (dayData.dayStatus === 'assumpte_propi') {
-        counters.assumpte_propi += dayData.apHours || 0;
-      }
-      if (dayData.dayStatus === 'flexibilitat') {
-        counters.flexibilitat += dayData.flexHours || 0;
-      }
-      if (dayData.dayStatus === 'altres') {
-        counters.altres += dayData.otherHours || 0;
-      }
+      counters.assumpte_propi += getAbsenceHours(dayData, 'assumpte_propi');
+      counters.flexibilitat += getAbsenceHours(dayData, 'flexibilitat');
+      counters.altres += getAbsenceHours(dayData, 'altres');
     }
 
     return (Object.keys(distributionChartConfig) as DistributionKey[])
@@ -402,23 +407,30 @@ export function ChartsDialog({ open, config, daysData, onClose }: ChartsDialogPr
               </BarChart>
             </ChartContainer>
 
-            <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+            <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
               {monthlyBalance.map((item) => {
                 const isPositive = item.difference >= 0;
                 return (
                   <div key={item.month} className="rounded-md border bg-card p-3">
-                    <div className="flex items-center justify-between gap-3">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
                       <p className="text-sm font-medium">{item.month}</p>
                       {!item.isFutureMonth && (
-                        <Badge variant={isPositive ? 'default' : 'destructive'}>
-                          {isPositive ? '+' : '-'}{formatHoursMinutes(Math.abs(item.difference))}
-                        </Badge>
+                        <div className="flex flex-wrap gap-2">
+                          <Badge variant={isPositive ? 'default' : 'destructive'}>
+                            {isPositive ? '+' : '-'}{formatHoursMinutes(Math.abs(item.difference))}
+                          </Badge>
+                          <Badge className="bg-violet-600 text-white hover:bg-violet-600">
+                            FX +{formatHoursMinutes(item.flexibility)}
+                          </Badge>
+                        </div>
                       )}
                     </div>
                     {!item.isFutureMonth && (
-                      <div className="mt-1 space-y-0.5 text-xs text-muted-foreground">
-                        <p>Treballades {formatHoursMinutes(item.worked)}</p>
-                        <p>Teòriques {formatHoursMinutes(item.theoretical)}</p>
+                      <div className="mt-1">
+                        <div className="space-y-0.5 text-xs text-muted-foreground">
+                          <p>Treballades {formatHoursMinutes(item.worked)}</p>
+                          <p>Teòriques {formatHoursMinutes(item.theoretical)}</p>
+                        </div>
                       </div>
                     )}
                   </div>

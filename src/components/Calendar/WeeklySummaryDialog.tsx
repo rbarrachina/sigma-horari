@@ -17,6 +17,7 @@ import {
 } from '@/lib/timeCalculations';
 import { DAY_NAMES_CA, MONTH_NAMES_CA } from '@/lib/constants';
 import { Home, Building2, Plane, Clock, Sparkles, Calendar, Check, MoreHorizontal, AlertTriangle } from 'lucide-react';
+import { getDayAbsences, getTotalPartialAbsenceHours, hasAbsence } from '@/lib/absences';
 
 interface WeeklySummaryDialogProps {
   weekStart: Date | null;
@@ -59,7 +60,7 @@ export function WeeklySummaryDialog({
     
     const dateStr = format(day, 'yyyy-MM-dd');
     const dayData = daysData[dateStr];
-    if (dayData?.dayStatus === 'vacances') continue;
+    if (hasAbsence(dayData, 'vacances')) continue;
 
     const theoretical = getTheoreticalHoursForDate(day, config);
     totalTheoretical += theoretical;
@@ -69,32 +70,14 @@ export function WeeklySummaryDialog({
 
   const difference = totalWorked - totalTheoretical;
 
-  const getDayStatusLabel = (dayData: DayData | undefined, holiday: boolean) => {
-    if (holiday) return 'Festiu';
-    if (!dayData) return 'Laboral';
-    if (dayData.dayStatus === 'vacances') return 'Vacances';
-    if (dayData.dayStatus === 'assumpte_propi') return 'AP';
-    if (dayData.dayStatus === 'flexibilitat') return 'FX';
-    if (dayData.dayStatus === 'altres') return 'Altres';
-    return 'Laboral';
-  };
-
-  const getDayStatusIcon = (dayData: DayData | undefined, holiday: boolean) => {
-    if (holiday) return Calendar;
-    if (dayData?.dayStatus === 'vacances') return Plane;
-    if (dayData?.dayStatus === 'assumpte_propi') return Clock;
-    if (dayData?.dayStatus === 'flexibilitat') return Sparkles;
-    if (dayData?.dayStatus === 'altres') return MoreHorizontal;
-    return null;
-  };
-
   const getStatusCardClass = (dayData: DayData | undefined, holiday: boolean, worked: number, theoretical: number) => {
     if (holiday) return 'bg-[hsl(var(--status-holiday)/0.15)] border-[hsl(var(--status-holiday)/0.4)]';
-    if (dayData?.dayStatus === 'vacances') {
+    if (hasAbsence(dayData, 'vacances')) {
       return 'bg-[hsl(var(--status-vacation)/0.15)] border-[hsl(var(--status-vacation)/0.4)]';
     }
-    if (dayData?.dayStatus === 'assumpte_propi' || dayData?.dayStatus === 'flexibilitat' || dayData?.dayStatus === 'altres') {
-      return dayData?.requestStatus === 'aprovat'
+    const absences = getDayAbsences(dayData);
+    if (absences.length > 0) {
+      return absences.every((absence) => absence.requestStatus === 'aprovat')
         ? 'bg-[hsl(var(--status-complete)/0.15)] border-[hsl(var(--status-complete)/0.4)]'
         : 'bg-[hsl(var(--status-deficit)/0.15)] border-[hsl(var(--status-deficit)/0.4)]';
     }
@@ -136,118 +119,6 @@ export function WeeklySummaryDialog({
         </DialogHeader>
 
         <div className="space-y-4 py-4">
-          {days.map((day) => {
-            if (isWeekend(day)) return null;
-            
-            const dateStr = format(day, 'yyyy-MM-dd');
-            const dayData = daysData[dateStr];
-            const holiday = isHoliday(day, config.holidays);
-            const dayType = getDayTypeForDate(day, config);
-            const theoretical = getTheoreticalHoursForDate(day, config);
-            const baseWorked = calculateDayWorkedHours(dayData);
-            const extraHours = dayData?.dayStatus === 'assumpte_propi'
-              ? (dayData.apHours || 0)
-              : dayData?.dayStatus === 'flexibilitat'
-                ? (dayData.flexHours || 0)
-                : dayData?.dayStatus === 'altres'
-                  ? (dayData.otherHours || 0)
-                  : 0;
-            const worked = capDailyHours(baseWorked + extraHours);
-            const excludedFromTotals = holiday || dayData?.dayStatus === 'vacances';
-            const summaryTheoretical = excludedFromTotals ? 0 : theoretical;
-            const summaryWorked = excludedFromTotals ? 0 : worked;
-            const dayDifference = summaryWorked - summaryTheoretical;
-            const DayIcon = dayType === 'teletreball' ? Home : Building2;
-            const StatusIcon = getDayStatusIcon(dayData, holiday);
-            const statusLabel = getDayStatusLabel(dayData, holiday);
-            const statusCardClass = getStatusCardClass(dayData, holiday, worked, theoretical);
-            const schedule = getScheduleDisplay(dayData);
-            const showStatusBadge = statusLabel !== 'Laboral';
-            const needsApproval = !holiday
-              && dayData
-              && ['vacances', 'assumpte_propi', 'flexibilitat', 'altres'].includes(dayData.dayStatus)
-              && dayData.requestStatus === 'pendent';
-            
-            return (
-              <div
-                key={dateStr}
-                className={`p-4 rounded-lg border ${statusCardClass}`}
-              >
-                <div className="grid grid-cols-1 md:grid-cols-[1fr_1.2fr] gap-4">
-                  <div className="flex flex-col gap-2">
-                    <div className="text-lg font-semibold">
-                      {getDayName(day)}, {format(day, 'd')}
-                    </div>
-                    <div className="flex flex-wrap gap-2">
-                      <Badge variant="outline">{formatHoursMinutes(summaryTheoretical)}</Badge>
-                      <Badge variant={dayType === 'presencial' ? 'default' : 'secondary'} className="text-xs">
-                        <DayIcon className="w-3 h-3 mr-1" />
-                        {dayType === 'presencial' ? 'Presencial' : 'Teletreball'}
-                      </Badge>
-                      {showStatusBadge && (
-                        <Badge variant="outline" className="text-xs flex items-center gap-1">
-                          {StatusIcon && <StatusIcon className="w-3 h-3" />}
-                          {statusLabel}
-                        </Badge>
-                      )}
-                      {needsApproval && (
-                        <Badge variant="destructive" className="text-xs flex items-center gap-1">
-                          <AlertTriangle className="w-3 h-3" />
-                          Falta aprovar
-                        </Badge>
-                      )}
-                      {dayData?.requestStatus === 'aprovat' && (
-                        <Badge variant="outline" className="text-xs flex items-center gap-1">
-                          <Check className="w-3 h-3" />
-                          Aprovat
-                        </Badge>
-                      )}
-                      {excludedFromTotals && (
-                        <Badge variant="secondary" className="text-xs">
-                          No computa
-                        </Badge>
-                      )}
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-sm">
-                    <div className="space-y-1">
-                      <p className="text-muted-foreground">Horari</p>
-                      {holiday || dayData?.dayStatus === 'vacances' ? (
-                        <p className="font-medium">—</p>
-                      ) : schedule.length > 0 ? (
-                        <div className="font-medium space-y-1">
-                          {schedule.map((shift) => (
-                            <div key={shift}>{shift}</div>
-                          ))}
-                        </div>
-                      ) : (
-                        <p className="font-medium text-muted-foreground">Sense horari</p>
-                      )}
-                    </div>
-                    <div className="space-y-1">
-                      <p className="text-muted-foreground">Hores treballades</p>
-                      <p className="font-medium">{formatHoursMinutes(summaryWorked)}</p>
-                      {extraHours > 0 && (
-                        <p className="text-xs text-muted-foreground">
-                          +{formatHoursMinutes(extraHours)} {dayData?.dayStatus === 'assumpte_propi' ? 'AP' : dayData?.dayStatus === 'flexibilitat' ? 'FX' : 'Altres'}
-                        </p>
-                      )}
-                    </div>
-                    <div className="space-y-1">
-                      <p className="text-muted-foreground">Diferència</p>
-                      <p className={`font-semibold ${dayDifference >= 0 ? 'text-[hsl(var(--status-complete))]' : 'text-[hsl(var(--status-deficit))]'}`}>
-                        {formatHoursDisplay(dayDifference)}
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            );
-          })}
-          
-          <Separator />
-          
           <div className="p-4 bg-card rounded-lg border">
             <div className="grid grid-cols-3 gap-4 text-center">
               <div>
@@ -266,6 +137,130 @@ export function WeeklySummaryDialog({
               </div>
             </div>
           </div>
+
+          <Separator />
+
+          {days.map((day) => {
+            if (isWeekend(day)) return null;
+            
+            const dateStr = format(day, 'yyyy-MM-dd');
+            const dayData = daysData[dateStr];
+            const holiday = isHoliday(day, config.holidays);
+            const dayType = getDayTypeForDate(day, config);
+            const theoretical = getTheoreticalHoursForDate(day, config);
+            const baseWorked = calculateDayWorkedHours(dayData);
+            const absences = getDayAbsences(dayData);
+            const partialAbsences = absences.filter((absence) => absence.type !== 'vacances');
+            const extraHours = getTotalPartialAbsenceHours(dayData);
+            const worked = capDailyHours(baseWorked + extraHours);
+            const excludedFromTotals = holiday || hasAbsence(dayData, 'vacances');
+            const summaryTheoretical = excludedFromTotals ? 0 : theoretical;
+            const summaryWorked = excludedFromTotals ? 0 : worked;
+            const dayDifference = summaryWorked - summaryTheoretical;
+            const DayIcon = dayType === 'teletreball' ? Home : Building2;
+            const statusCardClass = getStatusCardClass(dayData, holiday, worked, theoretical);
+            const schedule = getScheduleDisplay(dayData);
+            
+            return (
+              <div
+                key={dateStr}
+                className={`p-4 rounded-lg border ${statusCardClass}`}
+              >
+                <div className="grid grid-cols-1 md:grid-cols-[1fr_1.2fr] gap-4">
+                  <div className="flex flex-col gap-2">
+                    <div className="text-lg font-semibold">
+                      {getDayName(day)}, {format(day, 'd')}
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      <Badge variant="outline">{formatHoursMinutes(summaryTheoretical)}</Badge>
+                      <Badge variant={dayType === 'presencial' ? 'default' : 'secondary'} className="text-xs">
+                        <DayIcon className="w-3 h-3 mr-1" />
+                        {dayType === 'presencial' ? 'Presencial' : 'Teletreball'}
+                      </Badge>
+                      {holiday && (
+                        <Badge variant="outline" className="text-xs flex items-center gap-1">
+                          <Calendar className="w-3 h-3" />
+                          Festiu
+                        </Badge>
+                      )}
+                      {!holiday && absences.map((absence) => {
+                        const label = absence.type === 'vacances'
+                          ? 'Vacances'
+                          : absence.type === 'assumpte_propi'
+                            ? 'AP'
+                            : absence.type === 'flexibilitat'
+                              ? 'FX'
+                              : 'Altres';
+                        const StatusIcon = absence.type === 'vacances'
+                          ? Plane
+                          : absence.type === 'assumpte_propi'
+                            ? Clock
+                            : absence.type === 'flexibilitat'
+                              ? Sparkles
+                              : MoreHorizontal;
+                        const ApprovalIcon = absence.requestStatus === 'aprovat' ? Check : AlertTriangle;
+                        return (
+                          <Badge
+                            key={absence.type}
+                            variant={absence.requestStatus === 'aprovat' ? 'outline' : 'destructive'}
+                            className="text-xs flex items-center gap-1"
+                          >
+                            <StatusIcon className="w-3 h-3" />
+                            {label}
+                            <ApprovalIcon className="w-3 h-3" />
+                            {absence.requestStatus === 'aprovat' ? 'Aprovat' : 'Falta aprovar'}
+                          </Badge>
+                        );
+                      })}
+                      {excludedFromTotals && (
+                        <Badge variant="secondary" className="text-xs">
+                          No computa
+                        </Badge>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-sm">
+                    <div className="space-y-1">
+                      <p className="text-muted-foreground">Horari</p>
+                      {holiday || hasAbsence(dayData, 'vacances') ? (
+                        <p className="font-medium">—</p>
+                      ) : schedule.length > 0 ? (
+                        <div className="font-medium space-y-1">
+                          {schedule.map((shift) => (
+                            <div key={shift}>{shift}</div>
+                          ))}
+                        </div>
+                      ) : (
+                        <p className="font-medium text-muted-foreground">Sense horari</p>
+                      )}
+                    </div>
+                    <div className="space-y-1">
+                      <p className="text-muted-foreground">Hores treballades</p>
+                      <p className="font-medium">{formatHoursMinutes(summaryWorked)}</p>
+                      {partialAbsences.map((absence) => (
+                        <p key={absence.type} className="text-xs text-muted-foreground">
+                          +{formatHoursMinutes(absence.hours || 0)} {
+                            absence.type === 'assumpte_propi'
+                              ? 'AP'
+                              : absence.type === 'flexibilitat'
+                                ? 'FX'
+                                : 'Altres'
+                          }
+                        </p>
+                      ))}
+                    </div>
+                    <div className="space-y-1">
+                      <p className="text-muted-foreground">Diferència</p>
+                      <p className={`font-semibold ${dayDifference >= 0 ? 'text-[hsl(var(--status-complete))]' : 'text-[hsl(var(--status-deficit))]'}`}>
+                        {formatHoursDisplay(dayDifference)}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            );
+          })}
         </div>
 
         <DialogFooter>

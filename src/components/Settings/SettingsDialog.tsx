@@ -30,6 +30,7 @@ const SETTINGS_TABS = [
   { value: 'data', label: 'Dades' },
   { value: 'authorship', label: 'Autoria' },
 ] as const;
+export type SettingsTab = typeof SETTINGS_TABS[number]['value'];
 
 interface SettingsDialogProps {
   open: boolean;
@@ -39,6 +40,7 @@ interface SettingsDialogProps {
   onDataReset?: () => void;
   onboardingStep?: number;
   onOnboardingStepChange?: (step: number) => void;
+  initialTab?: SettingsTab;
 }
 
 export function SettingsDialog({
@@ -49,12 +51,13 @@ export function SettingsDialog({
   onDataReset,
   onboardingStep = 0,
   onOnboardingStepChange,
+  initialTab = 'personal',
 }: SettingsDialogProps) {
   const [localConfig, setLocalConfig] = useState<UserConfig>(config);
   const [apTotalHours, setApTotalHours] = useState(0);
   const [apTotalMinutes, setApTotalMinutes] = useState(0);
   const [newHoliday, setNewHoliday] = useState('');
-  const [activeTab, setActiveTab] = useState<'personal' | 'schedule' | 'holidays' | 'data' | 'authorship'>('personal');
+  const [activeTab, setActiveTab] = useState<SettingsTab>('personal');
   const fileInputRef = useRef<HTMLInputElement>(null);
   const isOnboarding = onboardingStep > 0;
   const visibleTabs = SETTINGS_TABS;
@@ -80,8 +83,8 @@ export function SettingsDialog({
       setActiveTab(ONBOARDING_TABS[onboardingStep] ?? 'personal');
       return;
     }
-    setActiveTab('personal');
-  }, [open, isOnboarding, onboardingStep]);
+    setActiveTab(initialTab);
+  }, [open, isOnboarding, onboardingStep, initialTab]);
 
   const getYearBounds = (year: number) => ({
     start: new Date(year, 0, 1),

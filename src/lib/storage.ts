@@ -7,6 +7,7 @@ const USER_CONFIG_KEY = 'control-horari-config';
 const DAYS_DATA_KEY = 'control-horari-days';
 const ONBOARDING_STEP_KEY = 'control-horari-onboarding-step';
 const LAST_VERSION_KEY = 'control-horari-last-version';
+const BACKUP_REMINDER_YEAR_KEY = 'control-horari-backup-reminder-year';
 
 export function hasStoredUserConfig(): boolean {
   try {
@@ -58,6 +59,26 @@ export function saveLastSeenVersion(version: string): void {
   }
 }
 
+export function getLastBackupReminderYear(): number | null {
+  try {
+    const stored = localStorage.getItem(BACKUP_REMINDER_YEAR_KEY);
+    if (!stored) return null;
+    const year = Number(stored);
+    return Number.isInteger(year) ? year : null;
+  } catch (error) {
+    console.error('Error loading backup reminder year:', error);
+    return null;
+  }
+}
+
+export function saveBackupReminderShown(year: number): void {
+  try {
+    localStorage.setItem(BACKUP_REMINDER_YEAR_KEY, String(year));
+  } catch (error) {
+    console.error('Error saving backup reminder year:', error);
+  }
+}
+
 export function getUserConfig(): UserConfig {
   try {
     const stored = localStorage.getItem(USER_CONFIG_KEY);
@@ -103,6 +124,7 @@ export function saveUserConfig(config: UserConfig): void {
 }
 
 function inferDayStatus(dayData: Partial<DayData>): DayStatus {
+  if (dayData.absences?.[0]) return dayData.absences[0].type;
   if (dayData.dayStatus) return dayData.dayStatus;
   if (dayData.apHours != null) return 'assumpte_propi';
   if (dayData.flexHours != null) return 'flexibilitat';
@@ -125,6 +147,7 @@ function normalizeDayData(date: string, raw: Partial<DayData>, config: UserConfi
     flexHours: raw.flexHours,
     otherHours: raw.otherHours,
     otherComment: raw.otherComment,
+    absences: raw.absences?.slice(0, 2),
     notes: raw.notes,
   };
 }
@@ -142,6 +165,7 @@ function sanitizeDayDataForStorage(date: string, dayData: DayData): Partial<DayD
   if (dayData.flexHours != null) cleaned.flexHours = dayData.flexHours;
   if (dayData.otherHours != null) cleaned.otherHours = dayData.otherHours;
   if (dayData.otherComment != null && dayData.otherComment !== '') cleaned.otherComment = dayData.otherComment;
+  if (dayData.absences?.length) cleaned.absences = dayData.absences.slice(0, 2);
   if (dayData.notes != null) cleaned.notes = dayData.notes;
 
   return cleaned;

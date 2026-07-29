@@ -3,6 +3,7 @@ import type { DayData, UserConfig } from '@/types';
 import { isWeekend, isHoliday, calculateTotalWorkedHours, getTheoreticalHoursForDate } from '@/lib/timeCalculations';
 import { format, eachDayOfInterval } from 'date-fns';
 import { CheckCircle, AlertCircle, XCircle } from 'lucide-react';
+import { hasAbsence, hasPendingAbsence } from '@/lib/absences';
 
 interface WeeklySummaryIconProps {
   weekStart: Date;
@@ -34,7 +35,7 @@ export function WeeklySummaryIcon({ weekStart, weekEnd, daysData, config, onClic
     const dateStr = format(day, 'yyyy-MM-dd');
     const dayData = daysData[dateStr];
 
-    if (dayData?.dayStatus !== 'vacances') {
+    if (!hasAbsence(dayData, 'vacances')) {
       const theoretical = getTheoreticalHoursForDate(day, config);
       totalTheoretical += theoretical;
 
@@ -47,7 +48,7 @@ export function WeeklySummaryIcon({ weekStart, weekEnd, daysData, config, onClic
     }
 
     // Check if pending approval
-    if (dayData.requestStatus === 'pendent') {
+    if (hasPendingAbsence(dayData)) {
       allComplete = false;
     }
     
@@ -55,7 +56,7 @@ export function WeeklySummaryIcon({ weekStart, weekEnd, daysData, config, onClic
     const hasAnyShift = Boolean(
       (dayData.startTime && dayData.endTime) || (dayData.startTime2 && dayData.endTime2)
     );
-    if (dayData.dayStatus === 'laboral' && !hasAnyShift) {
+    if (!hasAbsence(dayData, 'vacances') && !hasAnyShift) {
       allComplete = false;
     }
   }
