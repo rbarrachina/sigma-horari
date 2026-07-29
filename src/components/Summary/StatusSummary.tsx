@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Progress } from '@/components/ui/progress';
@@ -8,6 +8,7 @@ import { Plane, Clock, Sparkles, NotebookText } from 'lucide-react';
 import { MAX_FLEXIBILITY_HOURS, MONTH_NAMES_CA } from '@/lib/constants';
 import type { DayData, UserConfig } from '@/types';
 import { format, parseISO } from 'date-fns';
+import { getDayAbsences } from '@/lib/absences';
 
 interface StatusSummaryProps {
   config: UserConfig;
@@ -39,42 +40,39 @@ export function StatusSummary({ config, daysData, variant = 'default', onConfigU
     return `${minutes} min`;
   };
 
-  const requestedVacationDays = Object.values(daysData).filter((day) => day.dayStatus === 'vacances').length;
-  const pendingVacationDays = Object.values(daysData).filter(
-    (day) => day.dayStatus === 'vacances' && day.requestStatus === 'pendent'
-  ).length;
+  const absenceEntries = Object.values(daysData).flatMap((day) =>
+    getDayAbsences(day).map((absence) => ({ day, absence }))
+  );
+  const vacationEntries = absenceEntries.filter(({ absence }) => absence.type === 'vacances');
+  const apEntries = absenceEntries.filter(({ absence }) => absence.type === 'assumpte_propi');
+  const flexEntries = absenceEntries.filter(({ absence }) => absence.type === 'flexibilitat');
+  const requestedVacationDays = vacationEntries.length;
+  const pendingVacationDays = vacationEntries
+    .filter(({ absence }) => absence.requestStatus === 'pendent').length;
   const remainingVacationDays = Math.max(0, config.totalVacationDays - requestedVacationDays);
   const vacationProgress = config.totalVacationDays > 0
     ? (requestedVacationDays / config.totalVacationDays) * 100
     : 0;
-  const requestedAPHours = Object.values(daysData).reduce((total, day) => {
-    if (day.dayStatus !== 'assumpte_propi') {
-      return total;
-    }
-    return total + (day.apHours || 0);
-  }, 0);
-  const pendingAPHours = Object.values(daysData).reduce((total, day) => {
-    if (day.dayStatus !== 'assumpte_propi' || day.requestStatus !== 'pendent') {
-      return total;
-    }
-    return total + (day.apHours || 0);
-  }, 0);
+  const requestedAPHours = apEntries.reduce(
+    (total, { absence }) => total + (absence.hours || 0),
+    0
+  );
+  const pendingAPHours = apEntries.reduce(
+    (total, { absence }) => total + (absence.requestStatus === 'pendent' ? (absence.hours || 0) : 0),
+    0
+  );
   const remainingAPHours = Math.max(0, config.totalAPHours - requestedAPHours);
   const apProgress = config.totalAPHours > 0
     ? (requestedAPHours / config.totalAPHours) * 100
     : 0;
-  const requestedFlexHours = Object.values(daysData).reduce((total, day) => {
-    if (day.dayStatus !== 'flexibilitat') {
-      return total;
-    }
-    return total + (day.flexHours || 0);
-  }, 0);
-  const pendingFlexHours = Object.values(daysData).reduce((total, day) => {
-    if (day.dayStatus !== 'flexibilitat' || day.requestStatus !== 'pendent') {
-      return total;
-    }
-    return total + (day.flexHours || 0);
-  }, 0);
+  const requestedFlexHours = flexEntries.reduce(
+    (total, { absence }) => total + (absence.hours || 0),
+    0
+  );
+  const pendingFlexHours = flexEntries.reduce(
+    (total, { absence }) => total + (absence.requestStatus === 'pendent' ? (absence.hours || 0) : 0),
+    0
+  );
   const remainingFlexHours = Math.max(0, config.flexibilityHours - requestedFlexHours);
   const flexProgress = MAX_FLEXIBILITY_HOURS > 0
     ? (requestedFlexHours / MAX_FLEXIBILITY_HOURS) * 100
@@ -90,42 +88,24 @@ export function StatusSummary({ config, daysData, variant = 'default', onConfigU
   const flexValue = pendingFlexHours > 0
     ? `${formatDuration(remainingFlexHours)} (${formatDuration(pendingFlexHours)} per aprovar)`
     : formatDuration(remainingFlexHours);
-  const pendingVacationDaysList = useMemo(
-    () => Object.values(daysData)
-      .filter((day) => day.dayStatus === 'vacances' && day.requestStatus === 'pendent')
-      .sort((a, b) => parseISO(a.date).getTime() - parseISO(b.date).getTime()),
-    [daysData]
-  );
-  const approvedVacationDaysList = useMemo(
-    () => Object.values(daysData)
-      .filter((day) => day.dayStatus === 'vacances' && day.requestStatus === 'aprovat')
-      .sort((a, b) => parseISO(a.date).getTime() - parseISO(b.date).getTime()),
-    [daysData]
-  );
-  const pendingAPDaysList = useMemo(
-    () => Object.values(daysData)
-      .filter((day) => day.dayStatus === 'assumpte_propi' && day.requestStatus === 'pendent')
-      .sort((a, b) => parseISO(a.date).getTime() - parseISO(b.date).getTime()),
-    [daysData]
-  );
-  const approvedAPDaysList = useMemo(
-    () => Object.values(daysData)
-      .filter((day) => day.dayStatus === 'assumpte_propi' && day.requestStatus === 'aprovat')
-      .sort((a, b) => parseISO(a.date).getTime() - parseISO(b.date).getTime()),
-    [daysData]
-  );
-  const pendingFlexDaysList = useMemo(
-    () => Object.values(daysData)
-      .filter((day) => day.dayStatus === 'flexibilitat' && day.requestStatus === 'pendent')
-      .sort((a, b) => parseISO(a.date).getTime() - parseISO(b.date).getTime()),
-    [daysData]
-  );
-  const approvedFlexDaysList = useMemo(
-    () => Object.values(daysData)
-      .filter((day) => day.dayStatus === 'flexibilitat' && day.requestStatus === 'aprovat')
-      .sort((a, b) => parseISO(a.date).getTime() - parseISO(b.date).getTime()),
-    [daysData]
-  );
+  const pendingVacationDaysList = vacationEntries
+    .filter(({ absence }) => absence.requestStatus === 'pendent')
+    .sort((a, b) => parseISO(a.day.date).getTime() - parseISO(b.day.date).getTime());
+  const approvedVacationDaysList = vacationEntries
+    .filter(({ absence }) => absence.requestStatus === 'aprovat')
+    .sort((a, b) => parseISO(a.day.date).getTime() - parseISO(b.day.date).getTime());
+  const pendingAPDaysList = apEntries
+    .filter(({ absence }) => absence.requestStatus === 'pendent')
+    .sort((a, b) => parseISO(a.day.date).getTime() - parseISO(b.day.date).getTime());
+  const approvedAPDaysList = apEntries
+    .filter(({ absence }) => absence.requestStatus === 'aprovat')
+    .sort((a, b) => parseISO(a.day.date).getTime() - parseISO(b.day.date).getTime());
+  const pendingFlexDaysList = flexEntries
+    .filter(({ absence }) => absence.requestStatus === 'pendent')
+    .sort((a, b) => parseISO(a.day.date).getTime() - parseISO(b.day.date).getTime());
+  const approvedFlexDaysList = flexEntries
+    .filter(({ absence }) => absence.requestStatus === 'aprovat')
+    .sort((a, b) => parseISO(a.day.date).getTime() - parseISO(b.day.date).getTime());
   const formatVacationDate = (date: string) => {
     const parsed = parseISO(date);
     return `${format(parsed, 'd')} de ${MONTH_NAMES_CA[parsed.getMonth()]}`;
@@ -198,7 +178,7 @@ export function StatusSummary({ config, daysData, variant = 'default', onConfigU
             <h3 className="text-sm font-semibold">Dies per aprovar</h3>
             {pendingVacationDaysList.length > 0 ? (
               <ul className="space-y-2">
-                {pendingVacationDaysList.map((day) => (
+                {pendingVacationDaysList.map(({ day }) => (
                   <li
                     key={day.date}
                     className="flex items-center justify-between rounded-lg border border-border bg-muted/40 px-3 py-2 text-sm"
@@ -217,7 +197,7 @@ export function StatusSummary({ config, daysData, variant = 'default', onConfigU
             <h3 className="text-sm font-semibold">Dies aprovats</h3>
             {approvedVacationDaysList.length > 0 ? (
               <ul className="space-y-2">
-                {approvedVacationDaysList.map((day) => (
+                {approvedVacationDaysList.map(({ day }) => (
                   <li
                     key={day.date}
                     className="flex items-center justify-between rounded-lg border border-border bg-muted/40 px-3 py-2 text-sm"
@@ -246,12 +226,12 @@ export function StatusSummary({ config, daysData, variant = 'default', onConfigU
             <h3 className="text-sm font-semibold">Hores i minuts per aprovar</h3>
             {pendingAPDaysList.length > 0 ? (
               <ul className="space-y-2">
-                {pendingAPDaysList.map((day) => (
+                {pendingAPDaysList.map(({ day, absence }) => (
                   <li
                     key={day.date}
                     className="flex items-center justify-between gap-3 rounded-lg border border-border bg-muted/40 px-3 py-2 text-sm"
                   >
-                    <span>{formatVacationDate(day.date)} · {formatAPHours(day.apHours)}</span>
+                    <span>{formatVacationDate(day.date)} · {formatAPHours(absence.hours)}</span>
                     <span className="text-xs text-muted-foreground">Pendent</span>
                   </li>
                 ))}
@@ -265,12 +245,12 @@ export function StatusSummary({ config, daysData, variant = 'default', onConfigU
             <h3 className="text-sm font-semibold">Hores i minuts aprovats</h3>
             {approvedAPDaysList.length > 0 ? (
               <ul className="space-y-2">
-                {approvedAPDaysList.map((day) => (
+                {approvedAPDaysList.map(({ day, absence }) => (
                   <li
                     key={day.date}
                     className="flex items-center justify-between gap-3 rounded-lg border border-border bg-muted/40 px-3 py-2 text-sm"
                   >
-                    <span>{formatVacationDate(day.date)} · {formatAPHours(day.apHours)}</span>
+                    <span>{formatVacationDate(day.date)} · {formatAPHours(absence.hours)}</span>
                     <span className="text-xs text-muted-foreground">Aprovat</span>
                   </li>
                 ))}
@@ -298,12 +278,12 @@ export function StatusSummary({ config, daysData, variant = 'default', onConfigU
             <h3 className="text-sm font-semibold">Hores i minuts per aprovar</h3>
             {pendingFlexDaysList.length > 0 ? (
               <ul className="space-y-2">
-                {pendingFlexDaysList.map((day) => (
+                {pendingFlexDaysList.map(({ day, absence }) => (
                   <li
                     key={day.date}
                     className="flex items-center justify-between gap-3 rounded-lg border border-border bg-muted/40 px-3 py-2 text-sm"
                   >
-                    <span>{formatVacationDate(day.date)} · {formatFlexHours(day.flexHours)}</span>
+                    <span>{formatVacationDate(day.date)} · {formatFlexHours(absence.hours)}</span>
                     <span className="text-xs text-muted-foreground">Pendent</span>
                   </li>
                 ))}
@@ -317,12 +297,12 @@ export function StatusSummary({ config, daysData, variant = 'default', onConfigU
             <h3 className="text-sm font-semibold">Hores i minuts aprovats</h3>
             {approvedFlexDaysList.length > 0 ? (
               <ul className="space-y-2">
-                {approvedFlexDaysList.map((day) => (
+                {approvedFlexDaysList.map(({ day, absence }) => (
                   <li
                     key={day.date}
                     className="flex items-center justify-between gap-3 rounded-lg border border-border bg-muted/40 px-3 py-2 text-sm"
                   >
-                    <span>{formatVacationDate(day.date)} · {formatFlexHours(day.flexHours)}</span>
+                    <span>{formatVacationDate(day.date)} · {formatFlexHours(absence.hours)}</span>
                     <span className="text-xs text-muted-foreground">Aprovat</span>
                   </li>
                 ))}

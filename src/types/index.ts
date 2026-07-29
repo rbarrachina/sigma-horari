@@ -2,6 +2,14 @@ export type DayType = 'presencial' | 'teletreball';
 export type DayStatus = 'laboral' | 'festiu' | 'vacances' | 'assumpte_propi' | 'flexibilitat' | 'altres';
 export type RequestStatus = 'pendent' | 'aprovat' | null;
 export type ScheduleType = 'hivern' | 'estiu';
+export type AbsenceType = 'vacances' | 'assumpte_propi' | 'flexibilitat' | 'altres';
+
+export interface DayAbsence {
+  type: AbsenceType;
+  hours?: number;
+  comment?: string;
+  requestStatus: RequestStatus;
+}
 
 export interface DayData {
   date: string; // YYYY-MM-DD
@@ -16,6 +24,7 @@ export interface DayData {
   flexHours?: number; // Hours used from flexibility
   otherHours?: number; // Hours used for other absences
   otherComment?: string; // Short comment for other absences
+  absences?: DayAbsence[]; // Up to two independently approved absences
   notes?: string;
 }
 

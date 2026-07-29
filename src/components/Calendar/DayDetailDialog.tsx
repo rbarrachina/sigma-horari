@@ -7,10 +7,11 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Badge } from '@/components/ui/badge';
-import type { DayData, UserConfig, DayStatus, RequestStatus } from '@/types';
+import type { DayAbsence, DayData, UserConfig, DayStatus } from '@/types';
 import { getTheoreticalHoursForDate, getDayTypeForDate, calculateWorkedHours, isHoliday, formatHoursToTime, parseTimeToHours, normalizeHoursDifference, capDailyHours } from '@/lib/timeCalculations';
 import { DAY_NAMES_CA, MAX_DAILY_WORK_HOURS, MAX_FLEXIBILITY_HOURS, MONTH_NAMES_CA } from '@/lib/constants';
 import { Home, Building2, Plus, Trash2 } from 'lucide-react';
+import { getAbsenceHours, getDayAbsences, getLegacyRequestStatus, hasAbsence } from '@/lib/absences';
 
 interface DayDetailDialogProps {
   date: Date | null;
@@ -22,6 +23,7 @@ interface DayDetailDialogProps {
 }
 
 type AbsenceType = 'cap' | 'vacances' | 'assumpte_propi' | 'flexibilitat' | 'altres';
+type SecondaryAbsenceType = 'cap' | 'assumpte_propi' | 'flexibilitat' | 'altres';
 
 export function DayDetailDialog({ date, dayData, config, requestedVacationDays, onClose, onSave }: DayDetailDialogProps) {
   const [startTime, setStartTime] = useState(config.defaultStartTime);
@@ -35,6 +37,11 @@ export function DayDetailDialog({ date, dayData, config, requestedVacationDays, 
   const [absenceHours, setAbsenceHours] = useState(0);
   const [absenceMinutes, setAbsenceMinutes] = useState(0);
   const [otherComment, setOtherComment] = useState('');
+  const [secondaryAbsenceType, setSecondaryAbsenceType] = useState<SecondaryAbsenceType>('cap');
+  const [secondaryAbsenceHours, setSecondaryAbsenceHours] = useState(0);
+  const [secondaryAbsenceMinutes, setSecondaryAbsenceMinutes] = useState(0);
+  const [secondaryOtherComment, setSecondaryOtherComment] = useState('');
+  const [isSecondaryApproved, setIsSecondaryApproved] = useState(false);
   const [vacationError, setVacationError] = useState('');
   const [apError, setApError] = useState('');
   const [dateRuleError, setDateRuleError] = useState('');
@@ -68,34 +75,55 @@ export function DayDetailDialog({ date, dayData, config, requestedVacationDays, 
         setIsEndTimeAuto(true);
       }
       
-      // Determine absence type from dayStatus
-      if (dayData.dayStatus === 'vacances') {
+      const storedAbsences = getDayAbsences(dayData);
+      const primaryAbsence = storedAbsences[0];
+      const secondaryAbsence = storedAbsences[1];
+
+      // Determine absence type from the first stored absence
+      if (primaryAbsence?.type === 'vacances') {
         setAbsenceType('vacances');
         setOtherComment('');
-      } else if (dayData.dayStatus === 'assumpte_propi') {
+      } else if (primaryAbsence?.type === 'assumpte_propi') {
         setAbsenceType('assumpte_propi');
-        const hours = dayData.apHours || 0;
+        const hours = primaryAbsence.hours || 0;
         setAbsenceHours(Math.floor(hours));
         setAbsenceMinutes(Math.round((hours % 1) * 60));
         setOtherComment('');
-      } else if (dayData.dayStatus === 'flexibilitat') {
+      } else if (primaryAbsence?.type === 'flexibilitat') {
         setAbsenceType('flexibilitat');
-        const hours = dayData.flexHours || 0;
+        const hours = primaryAbsence.hours || 0;
         setAbsenceHours(Math.floor(hours));
         setAbsenceMinutes(Math.round((hours % 1) * 60));
         setOtherComment('');
-      } else if (dayData.dayStatus === 'altres') {
+      } else if (primaryAbsence?.type === 'altres') {
         setAbsenceType('altres');
-        const hours = dayData.otherHours || 0;
+        const hours = primaryAbsence.hours || 0;
         setAbsenceHours(Math.floor(hours));
         setAbsenceMinutes(Math.round((hours % 1) * 60));
-        setOtherComment(dayData.otherComment || '');
+        setOtherComment(primaryAbsence.comment || '');
       } else {
         setAbsenceType('cap');
+        setAbsenceHours(0);
+        setAbsenceMinutes(0);
         setOtherComment('');
       }
-      
-      setIsApproved(dayData.requestStatus === 'aprovat');
+
+      if (secondaryAbsence && secondaryAbsence.type !== 'vacances') {
+        const hours = secondaryAbsence.hours || 0;
+        setSecondaryAbsenceType(secondaryAbsence.type);
+        setSecondaryAbsenceHours(Math.floor(hours));
+        setSecondaryAbsenceMinutes(Math.round((hours % 1) * 60));
+        setSecondaryOtherComment(secondaryAbsence.type === 'altres' ? (secondaryAbsence.comment || '') : '');
+        setIsSecondaryApproved(secondaryAbsence.requestStatus === 'aprovat');
+      } else {
+        setSecondaryAbsenceType('cap');
+        setSecondaryAbsenceHours(0);
+        setSecondaryAbsenceMinutes(0);
+        setSecondaryOtherComment('');
+        setIsSecondaryApproved(false);
+      }
+
+      setIsApproved(primaryAbsence?.requestStatus === 'aprovat');
     } else {
       setStartTime(config.defaultStartTime);
       setEndTime(getCalculatedEndTime(config.defaultStartTime));
@@ -108,6 +136,11 @@ export function DayDetailDialog({ date, dayData, config, requestedVacationDays, 
       setAbsenceHours(0);
       setAbsenceMinutes(0);
       setOtherComment('');
+      setSecondaryAbsenceType('cap');
+      setSecondaryAbsenceHours(0);
+      setSecondaryAbsenceMinutes(0);
+      setSecondaryOtherComment('');
+      setIsSecondaryApproved(false);
     }
     setVacationError('');
     setApError('');
@@ -120,8 +153,9 @@ export function DayDetailDialog({ date, dayData, config, requestedVacationDays, 
   const actualWorkedHours = calculateWorkedHours(startTime, endTime)
     + calculateWorkedHours(startTime2, endTime2);
   const absenceHoursDecimal = absenceHours + (absenceMinutes / 60);
-  const previousFlexHours = dayData?.dayStatus === 'flexibilitat' ? (dayData.flexHours || 0) : 0;
-  const previousAPHours = dayData?.dayStatus === 'assumpte_propi' ? (dayData.apHours || 0) : 0;
+  const secondaryAbsenceHoursDecimal = secondaryAbsenceHours + (secondaryAbsenceMinutes / 60);
+  const previousFlexHours = getAbsenceHours(dayData, 'flexibilitat');
+  const previousAPHours = getAbsenceHours(dayData, 'assumpte_propi');
   const availableFlexHours = Math.min(
     MAX_FLEXIBILITY_HOURS,
     Math.max(0, config.flexibilityHours - config.usedFlexHours + previousFlexHours)
@@ -132,12 +166,19 @@ export function DayDetailDialog({ date, dayData, config, requestedVacationDays, 
   const maxFlexMinutes = Math.min(59, Math.round((maxFlexHours - maxFlexHoursInt) * 60));
   const getFlexMinutesLimit = (hoursValue: number) => (hoursValue >= maxFlexHoursInt ? maxFlexMinutes : 59);
   
-  // Total worked hours = actual worked + AP/FX hours (if applicable)
+  const primaryPartialHours = absenceType === 'assumpte_propi'
+    || absenceType === 'flexibilitat'
+    || absenceType === 'altres'
+    ? absenceHoursDecimal
+    : 0;
+  const secondaryPartialHours = secondaryAbsenceType !== 'cap'
+    ? secondaryAbsenceHoursDecimal
+    : 0;
+
+  // Total worked hours = actual worked + all partial absence hours
   const rawTotalWorkedHours = absenceType === 'vacances' 
     ? theoreticalHours  // Vacances counts as full day
-    : (absenceType === 'assumpte_propi' || absenceType === 'flexibilitat' || absenceType === 'altres')
-      ? actualWorkedHours + absenceHoursDecimal
-      : actualWorkedHours;
+    : actualWorkedHours + primaryPartialHours + secondaryPartialHours;
   const totalWorkedHours = absenceType === 'vacances'
     ? rawTotalWorkedHours
     : capDailyHours(rawTotalWorkedHours);
@@ -174,13 +215,32 @@ export function DayDetailDialog({ date, dayData, config, requestedVacationDays, 
     return 'laboral';
   };
 
-  const getRequestStatus = (): RequestStatus => {
-    if (absenceType === 'cap') return null;
-    return isApproved ? 'aprovat' : 'pendent';
-  };
-
   const getAbsenceHoursDecimal = (): number => {
     return absenceHours + (absenceMinutes / 60);
+  };
+
+  const buildAbsences = (): DayAbsence[] => {
+    if (absenceType === 'cap') return [];
+
+    const primary: DayAbsence = {
+      type: absenceType,
+      hours: absenceType === 'vacances' ? undefined : getAbsenceHoursDecimal(),
+      comment: absenceType === 'altres' ? otherComment.trim().slice(0, 50) || undefined : undefined,
+      requestStatus: isApproved ? 'aprovat' : 'pendent',
+    };
+    if (secondaryAbsenceType === 'cap' || absenceType === 'vacances') return [primary];
+
+    return [
+      primary,
+      {
+        type: secondaryAbsenceType,
+        hours: secondaryAbsenceHoursDecimal,
+        comment: secondaryAbsenceType === 'altres'
+          ? secondaryOtherComment.trim().slice(0, 50) || undefined
+          : undefined,
+        requestStatus: isSecondaryApproved ? 'aprovat' : 'pendent',
+      },
+    ];
   };
 
   const getDateRuleError = (nextAbsenceType: AbsenceType): string => {
@@ -198,12 +258,13 @@ export function DayDetailDialog({ date, dayData, config, requestedVacationDays, 
 
   const handleSave = () => {
     const ruleError = getDateRuleError(absenceType);
-    if (ruleError) {
-      setDateRuleError(ruleError);
+    const secondaryRuleError = getDateRuleError(secondaryAbsenceType);
+    if (ruleError || secondaryRuleError) {
+      setDateRuleError(ruleError || secondaryRuleError);
       return;
     }
 
-    const isCurrentlyVacation = dayData?.dayStatus === 'vacances';
+    const isCurrentlyVacation = hasAbsence(dayData, 'vacances');
     const effectiveRequestedVacations = requestedVacationDays - (isCurrentlyVacation ? 1 : 0);
     const exceedsVacationLimit = absenceType === 'vacances' && !isCurrentlyVacation
       && effectiveRequestedVacations >= config.totalVacationDays;
@@ -213,15 +274,17 @@ export function DayDetailDialog({ date, dayData, config, requestedVacationDays, 
       return;
     }
 
-    if (absenceType === 'assumpte_propi' && getAbsenceHoursDecimal() > availableAPHours) {
+    const absences = buildAbsences();
+    const requestedAP = absences.find((absence) => absence.type === 'assumpte_propi')?.hours || 0;
+    if (requestedAP > availableAPHours) {
       setApError('No queden prou hores d’AP disponibles.');
       return;
     }
 
-    const cappedFlexHours = absenceType === 'flexibilitat'
-      ? Math.min(getAbsenceHoursDecimal(), maxFlexHours)
-      : undefined;
-    const trimmedOtherComment = otherComment.trim().slice(0, 50);
+    const normalizedAbsences = absences.map((absence) => absence.type === 'flexibilitat'
+      ? { ...absence, hours: Math.min(absence.hours || 0, maxFlexHours) }
+      : absence
+    );
     const newDayData: DayData = {
       date: format(date, 'yyyy-MM-dd'),
       startTime: absenceType === 'vacances' ? null : (startTime || null),
@@ -230,11 +293,12 @@ export function DayDetailDialog({ date, dayData, config, requestedVacationDays, 
       endTime2: absenceType === 'vacances' ? null : (endTime2 || null),
       dayType,
       dayStatus: getDayStatus(),
-      requestStatus: getRequestStatus(),
-      apHours: absenceType === 'assumpte_propi' ? getAbsenceHoursDecimal() : undefined,
-      flexHours: absenceType === 'flexibilitat' ? cappedFlexHours : undefined,
-      otherHours: absenceType === 'altres' ? getAbsenceHoursDecimal() : undefined,
-      otherComment: absenceType === 'altres' && trimmedOtherComment ? trimmedOtherComment : undefined,
+      requestStatus: getLegacyRequestStatus(normalizedAbsences),
+      apHours: normalizedAbsences.find((absence) => absence.type === 'assumpte_propi')?.hours,
+      flexHours: normalizedAbsences.find((absence) => absence.type === 'flexibilitat')?.hours,
+      otherHours: normalizedAbsences.find((absence) => absence.type === 'altres')?.hours,
+      otherComment: normalizedAbsences.find((absence) => absence.type === 'altres')?.comment,
+      absences: normalizedAbsences,
     };
     onSave(newDayData);
     onClose();
@@ -242,14 +306,14 @@ export function DayDetailDialog({ date, dayData, config, requestedVacationDays, 
 
   return (
     <Dialog open={!!date} onOpenChange={() => onClose()}>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent className="flex max-h-[90vh] flex-col overflow-hidden sm:max-w-md">
         <DialogHeader>
           <DialogTitle className="text-xl">
             {getDayName()}, {format(date, 'd')} de {MONTH_NAMES_CA[date.getMonth()]}
           </DialogTitle>
         </DialogHeader>
 
-        <div className="space-y-6 py-4">
+        <div className="min-h-0 flex-1 space-y-6 overflow-y-auto py-4 pr-1">
           {/* Day type and theoretical hours */}
           <div className="flex items-center gap-3">
             <Badge variant={dayType === 'presencial' ? 'default' : 'secondary'} className="flex items-center gap-1.5">
@@ -396,43 +460,72 @@ export function DayDetailDialog({ date, dayData, config, requestedVacationDays, 
             </Button>
           )}
 
-          {/* Absence type selector */}
+          {/* Primary absence type selector */}
           <div className="space-y-3">
-            <Label>Absència</Label>
-            <Select value={absenceType} onValueChange={(v) => {
-              const nextAbsenceType = v as AbsenceType;
-              setAbsenceType(nextAbsenceType);
-              setDateRuleError(getDateRuleError(nextAbsenceType));
-              if (v !== 'vacances') {
-                setVacationError('');
-              } else if (dayData?.dayStatus !== 'vacances' && requestedVacationDays >= config.totalVacationDays) {
-                setVacationError('Ja has demanat el màxim de dies de vacances.');
-              } else {
-                setVacationError('');
-              }
-              if (v !== 'assumpte_propi') {
-                setApError('');
-              }
-              if (v === 'cap') {
-                setIsApproved(false);
-                setAbsenceHours(0);
-                setAbsenceMinutes(0);
-              }
-              if (v !== 'altres') {
-                setOtherComment('');
-              }
-            }}>
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="cap">Cap absència</SelectItem>
-                <SelectItem value="vacances" disabled={!canUseVacation}>Vacances</SelectItem>
-                <SelectItem value="assumpte_propi" disabled={!canUseAP}>Assumpte propi (AP)</SelectItem>
-                <SelectItem value="flexibilitat" disabled={!canUseFlexibility}>Flexibilitat horària (FX)</SelectItem>
-                <SelectItem value="altres">Altres</SelectItem>
-              </SelectContent>
-            </Select>
+            <Label>{secondaryAbsenceType === 'cap' ? 'Absència' : 'Absència 1'}</Label>
+            <div className="flex items-center gap-2">
+              <Select value={absenceType} onValueChange={(v) => {
+                const nextAbsenceType = v as AbsenceType;
+                setAbsenceType(nextAbsenceType);
+                setDateRuleError(getDateRuleError(nextAbsenceType));
+                if (v !== 'vacances') {
+                  setVacationError('');
+                } else if (!hasAbsence(dayData, 'vacances') && requestedVacationDays >= config.totalVacationDays) {
+                  setVacationError('Ja has demanat el màxim de dies de vacances.');
+                } else {
+                  setVacationError('');
+                }
+                if (v !== 'assumpte_propi') {
+                  setApError('');
+                }
+                if (v === 'cap' || v === 'vacances') {
+                  setSecondaryAbsenceType('cap');
+                  setSecondaryAbsenceHours(0);
+                  setSecondaryAbsenceMinutes(0);
+                  setSecondaryOtherComment('');
+                  setIsSecondaryApproved(false);
+                }
+                if (v === 'cap') {
+                  setIsApproved(false);
+                  setAbsenceHours(0);
+                  setAbsenceMinutes(0);
+                }
+                if (v !== 'altres') {
+                  setOtherComment('');
+                }
+                if (v === secondaryAbsenceType) {
+                  setSecondaryAbsenceType('cap');
+                }
+              }}>
+                <SelectTrigger className="flex-1">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="cap">Cap absència</SelectItem>
+                  <SelectItem value="vacances" disabled={!canUseVacation}>Vacances</SelectItem>
+                  <SelectItem value="assumpte_propi" disabled={!canUseAP}>Assumpte propi (AP)</SelectItem>
+                  <SelectItem value="flexibilitat" disabled={!canUseFlexibility}>Flexibilitat horària (FX)</SelectItem>
+                  <SelectItem value="altres">Altres</SelectItem>
+                </SelectContent>
+              </Select>
+              {secondaryAbsenceType === 'cap'
+                && ['assumpte_propi', 'flexibilitat', 'altres'].includes(absenceType) && (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => setSecondaryAbsenceType(
+                      absenceType === 'assumpte_propi'
+                        ? (canUseFlexibility ? 'flexibilitat' : 'altres')
+                        : 'assumpte_propi'
+                    )}
+                    title="Afegir una segona absència"
+                    aria-label="Afegir una segona absència"
+                  >
+                    <Plus className="h-4 w-4" />
+                  </Button>
+                )}
+            </div>
             {dateRuleError && (
               <p className="text-sm text-destructive">{dateRuleError}</p>
             )}
@@ -532,6 +625,141 @@ export function DayDetailDialog({ date, dayData, config, requestedVacationDays, 
             </div>
           )}
 
+          {/* Secondary absence */}
+          {secondaryAbsenceType !== 'cap' && (
+            <div className="space-y-3 rounded-lg border p-3">
+              <Label>Absència 2</Label>
+              <div className="flex items-center gap-2">
+                <Select
+                  value={secondaryAbsenceType}
+                  onValueChange={(value) => {
+                    const nextType = value as SecondaryAbsenceType;
+                    setSecondaryAbsenceType(nextType);
+                    setDateRuleError(getDateRuleError(nextType));
+                    setApError('');
+                    if (nextType !== 'altres') setSecondaryOtherComment('');
+                  }}
+                >
+                  <SelectTrigger className="flex-1">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem
+                      value="assumpte_propi"
+                      disabled={!canUseAP || absenceType === 'assumpte_propi'}
+                    >
+                      Assumpte propi (AP)
+                    </SelectItem>
+                    <SelectItem
+                      value="flexibilitat"
+                      disabled={!canUseFlexibility || absenceType === 'flexibilitat'}
+                    >
+                      Flexibilitat horària (FX)
+                    </SelectItem>
+                    <SelectItem value="altres" disabled={absenceType === 'altres'}>
+                      Altres
+                    </SelectItem>
+                  </SelectContent>
+                </Select>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => {
+                    setSecondaryAbsenceType('cap');
+                    setSecondaryAbsenceHours(0);
+                    setSecondaryAbsenceMinutes(0);
+                    setSecondaryOtherComment('');
+                    setIsSecondaryApproved(false);
+                  }}
+                  className="text-muted-foreground hover:text-destructive"
+                  title="Eliminar la segona absència"
+                  aria-label="Eliminar la segona absència"
+                >
+                  <Trash2 className="h-4 w-4" />
+                </Button>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="secondaryAbsenceHours">Hores</Label>
+                  <Input
+                    id="secondaryAbsenceHours"
+                    type="number"
+                    min="0"
+                    max={secondaryAbsenceType === 'flexibilitat'
+                      ? Math.floor(maxFlexHours)
+                      : Math.floor(theoreticalHours)}
+                    step="1"
+                    value={secondaryAbsenceHours}
+                    onChange={(event) => {
+                      const nextHours = parseInt(event.target.value) || 0;
+                      const cappedHours = secondaryAbsenceType === 'flexibilitat'
+                        ? Math.min(nextHours, maxFlexHoursInt)
+                        : nextHours;
+                      setSecondaryAbsenceHours(cappedHours);
+                      if (secondaryAbsenceType === 'flexibilitat') {
+                        const minutesLimit = getFlexMinutesLimit(cappedHours);
+                        if (secondaryAbsenceMinutes > minutesLimit) {
+                          setSecondaryAbsenceMinutes(minutesLimit);
+                        }
+                      }
+                      setApError('');
+                    }}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="secondaryAbsenceMinutes">Minuts</Label>
+                  <Input
+                    id="secondaryAbsenceMinutes"
+                    type="number"
+                    min="0"
+                    max={secondaryAbsenceType === 'flexibilitat'
+                      ? getFlexMinutesLimit(secondaryAbsenceHours)
+                      : 59}
+                    step="1"
+                    value={secondaryAbsenceMinutes}
+                    onChange={(event) => {
+                      const nextMinutes = parseInt(event.target.value) || 0;
+                      const minutesLimit = secondaryAbsenceType === 'flexibilitat'
+                        ? getFlexMinutesLimit(secondaryAbsenceHours)
+                        : 59;
+                      setSecondaryAbsenceMinutes(Math.min(nextMinutes, minutesLimit));
+                      setApError('');
+                    }}
+                  />
+                </div>
+              </div>
+
+              {secondaryAbsenceType === 'altres' && (
+                <div className="space-y-2">
+                  <Label htmlFor="secondaryOtherComment">Comentari (màx. 50 caràcters)</Label>
+                  <Input
+                    id="secondaryOtherComment"
+                    type="text"
+                    maxLength={50}
+                    value={secondaryOtherComment}
+                    onChange={(event) => setSecondaryOtherComment(event.target.value)}
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    {secondaryOtherComment.length}/50
+                  </p>
+                </div>
+              )}
+
+              <div className="flex items-center space-x-2">
+                <Checkbox
+                  id="secondaryApproved"
+                  checked={isSecondaryApproved}
+                  onCheckedChange={(checked) => setIsSecondaryApproved(checked === true)}
+                />
+                <Label htmlFor="secondaryApproved" className="text-sm cursor-pointer">
+                  Aprovat
+                </Label>
+              </div>
+            </div>
+          )}
+
           {/* Approval checkbox for vacances */}
           {absenceType === 'vacances' && (
             <div className="flex items-center space-x-2">
@@ -557,7 +785,7 @@ export function DayDetailDialog({ date, dayData, config, requestedVacationDays, 
           </div>
         </div>
 
-        <DialogFooter>
+        <DialogFooter className="shrink-0 border-t pt-4">
           <Button variant="outline" onClick={onClose}>
             Cancel·lar
           </Button>

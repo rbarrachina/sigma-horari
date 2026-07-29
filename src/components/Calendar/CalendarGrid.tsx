@@ -8,6 +8,7 @@ import { WeeklySummaryIcon } from './WeeklySummaryIcon';
 import { WeeklySummaryDialog } from './WeeklySummaryDialog';
 import { MONTH_NAMES_CA } from '@/lib/constants';
 import type { DayData, UserConfig } from '@/types';
+import { hasAbsence } from '@/lib/absences';
 
 interface CalendarGridProps {
   daysData: Record<string, DayData>;
@@ -73,7 +74,8 @@ export function CalendarGrid({ daysData, config, onDayUpdate }: CalendarGridProp
   }
 
   const weekDayHeaders = ['Dl', 'Dt', 'Dc', 'Dj', 'Dv', 'Ds', 'Dg', ''];
-  const requestedVacationDays = Object.values(daysData).filter((day) => day.dayStatus === 'vacances').length;
+  const requestedVacationDays = Object.values(daysData)
+    .filter((day) => hasAbsence(day, 'vacances')).length;
 
   return (
     <div className="bg-card rounded-xl shadow-lg p-6">

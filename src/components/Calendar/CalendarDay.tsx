@@ -3,6 +3,7 @@ import type { DayData, UserConfig } from '@/types';
 import { calculateTotalWorkedHours, isWeekend, isHoliday, getTheoreticalHoursForDate, getDayTypeForDate, normalizeHoursDifference } from '@/lib/timeCalculations';
 import { format } from 'date-fns';
 import { Home, Building2, Plane, Clock, Sparkles, Calendar, Check, MoreHorizontal } from 'lucide-react';
+import { getDayAbsences, hasAbsence, hasApprovedAbsence } from '@/lib/absences';
 
 interface CalendarDayProps {
   date: Date;
@@ -28,16 +29,16 @@ export function CalendarDay({ date, dayData, config, isCurrentMonth, isInCalenda
     if (holiday) return 'bg-[hsl(var(--status-holiday))] text-[hsl(var(--status-holiday-foreground))]';
     
     // Vacances = blue
-    if (dayData?.dayStatus === 'vacances') {
+    if (hasAbsence(dayData, 'vacances')) {
       return 'bg-[hsl(var(--status-vacation))] text-[hsl(var(--status-vacation-foreground))]';
     }
     
     // AP or FX with approval status
-    if (dayData?.dayStatus === 'assumpte_propi' || dayData?.dayStatus === 'flexibilitat' || dayData?.dayStatus === 'altres') {
+    if (getDayAbsences(dayData).length > 0) {
       const theoretical = getTheoreticalHoursForDate(date, config);
       const totalWorked = calculateTotalWorkedHours(dayData);
       const difference = normalizeHoursDifference(totalWorked - theoretical);
-      if (dayData.requestStatus === 'aprovat' && difference >= 0) {
+      if (hasApprovedAbsence(dayData) && difference >= 0) {
         return 'bg-[hsl(var(--status-complete))] text-[hsl(var(--status-complete-foreground))]';
       }
       return 'bg-[hsl(var(--status-deficit))] text-[hsl(var(--status-deficit-foreground))]';
@@ -64,18 +65,20 @@ export function CalendarDay({ date, dayData, config, isCurrentMonth, isInCalenda
   const dayType = isInCalendarYear ? getDayTypeForDate(date, config) : null;
   const DayIcon = dayType === 'teletreball' ? Home : Building2;
 
-  const getStatusIcon = () => {
-    if (dayData?.dayStatus === 'vacances') return <Plane className="w-3 h-3" />;
-    if (dayData?.dayStatus === 'assumpte_propi') return <Clock className="w-3 h-3" />;
-    if (dayData?.dayStatus === 'flexibilitat') return <Sparkles className="w-3 h-3" />;
-    if (dayData?.dayStatus === 'altres') return <MoreHorizontal className="w-3 h-3" />;
+  const getStatusIcons = () => {
+    const icons = getDayAbsences(dayData).map((absence) => {
+      if (absence.type === 'vacances') return <Plane key={absence.type} className="w-3 h-3" />;
+      if (absence.type === 'assumpte_propi') return <Clock key={absence.type} className="w-3 h-3" />;
+      if (absence.type === 'flexibilitat') return <Sparkles key={absence.type} className="w-3 h-3" />;
+      return <MoreHorizontal key={absence.type} className="w-3 h-3" />;
+    });
+    if (icons.length > 0) return icons;
     if (holiday) return <Calendar className="w-3 h-3" />;
     return null;
   };
 
   const getApprovalIcon = () => {
-    if ((dayData?.dayStatus === 'assumpte_propi' || dayData?.dayStatus === 'flexibilitat' || dayData?.dayStatus === 'altres' || dayData?.dayStatus === 'vacances') 
-        && dayData?.requestStatus === 'aprovat') {
+    if (hasApprovedAbsence(dayData)) {
       return <Check className="w-3 h-3" />;
     }
     return null;
@@ -98,18 +101,16 @@ export function CalendarDay({ date, dayData, config, isCurrentMonth, isInCalenda
     return `${m} min`;
   };
 
-  const getAbsenceDisplay = () => {
-    if (dayData?.dayStatus === 'assumpte_propi' && dayData.apHours) {
-      return `AP = ${formatAbsenceHours(dayData.apHours)}`;
-    }
-    if (dayData?.dayStatus === 'flexibilitat' && dayData.flexHours) {
-      return `FX = ${formatAbsenceHours(dayData.flexHours)}`;
-    }
-    if (dayData?.dayStatus === 'altres' && dayData.otherHours) {
-      return `Altres = ${formatAbsenceHours(dayData.otherHours)}`;
-    }
-    return null;
-  };
+  const absenceDisplays = getDayAbsences(dayData)
+    .filter((absence) => absence.type !== 'vacances' && absence.hours)
+    .map((absence) => {
+      const label = absence.type === 'assumpte_propi'
+        ? 'AP'
+        : absence.type === 'flexibilitat'
+          ? 'FX'
+          : 'Altres';
+      return `${label} = ${formatAbsenceHours(absence.hours || 0)}`;
+    });
 
   const getShiftDisplay = () => {
     const shifts: string[] = [];
@@ -156,14 +157,14 @@ export function CalendarDay({ date, dayData, config, isCurrentMonth, isInCalenda
                 ))}
               </div>
             )}
-            {getAbsenceDisplay() && (
-              <div className="text-xs opacity-80 font-medium">
-                {getAbsenceDisplay()}
+            {absenceDisplays.map((display) => (
+              <div key={display} className="text-xs opacity-80 font-medium">
+                {display}
               </div>
-            )}
+            ))}
             <div className="absolute bottom-2 right-2 flex items-center gap-1">
               {getApprovalIcon()}
-              {getStatusIcon()}
+              {getStatusIcons()}
             </div>
           </div>
         )}

@@ -1,14 +1,24 @@
 import { useEffect, useState } from 'react';
 import { Header } from '@/components/Header';
 import { CalendarGrid } from '@/components/Calendar/CalendarGrid';
-import { SettingsDialog } from '@/components/Settings/SettingsDialog';
+import { SettingsDialog, type SettingsTab } from '@/components/Settings/SettingsDialog';
 import { ChartsDialog } from '@/components/ChartsDialog';
 import { useTimeTracking } from '@/hooks/useTimeTracking';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { APP_INFO, RELEASE_NOTES } from '@/lib/constants';
-import { getLastSeenVersion, getOnboardingStep, hasStoredUserConfig, saveLastSeenVersion, saveOnboardingStep } from '@/lib/storage';
+import {
+  getLastBackupReminderYear,
+  getLastSeenVersion,
+  getOnboardingStep,
+  hasStoredUserConfig,
+  saveBackupReminderShown,
+  saveLastSeenVersion,
+  saveOnboardingStep,
+} from '@/lib/storage';
+import { isAnnualBackupReminderDue } from '@/lib/backupReminder';
+import { Download } from 'lucide-react';
 
 const Index = () => {
   const { config, daysData, isLoading, updateConfig, updateDayData } = useTimeTracking();
@@ -16,6 +26,10 @@ const Index = () => {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [onboardingStep, setOnboardingStep] = useState(0);
   const [showReleaseNotes, setShowReleaseNotes] = useState(false);
+  const [showBackupReminder, setShowBackupReminder] = useState(false);
+  const [pendingBackupReminderYear, setPendingBackupReminderYear] = useState<number | null>(null);
+  const [startupChecked, setStartupChecked] = useState(false);
+  const [settingsInitialTab, setSettingsInitialTab] = useState<SettingsTab>('personal');
   const isOnboarding = onboardingStep > 0;
 
   useEffect(() => {
@@ -35,6 +49,11 @@ const Index = () => {
     if (lastSeenVersion !== APP_INFO.version) {
       setShowReleaseNotes(true);
     }
+    const now = new Date();
+    if (isAnnualBackupReminderDue(now, getLastBackupReminderYear())) {
+      setPendingBackupReminderYear(now.getFullYear());
+    }
+    setStartupChecked(true);
   }, [isLoading]);
 
   useEffect(() => {
@@ -42,6 +61,30 @@ const Index = () => {
       setSettingsOpen(true);
     }
   }, [onboardingStep]);
+
+  useEffect(() => {
+    if (
+      !startupChecked
+      || pendingBackupReminderYear === null
+      || onboardingStep > 0
+      || settingsOpen
+      || showReleaseNotes
+      || showBackupReminder
+    ) {
+      return;
+    }
+
+    saveBackupReminderShown(pendingBackupReminderYear);
+    setPendingBackupReminderYear(null);
+    setShowBackupReminder(true);
+  }, [
+    onboardingStep,
+    pendingBackupReminderYear,
+    settingsOpen,
+    showBackupReminder,
+    showReleaseNotes,
+    startupChecked,
+  ]);
 
   const handleOnboardingStepChange = (step: number) => {
     setOnboardingStep(step);
@@ -63,6 +106,12 @@ const Index = () => {
     saveLastSeenVersion(APP_INFO.version);
   };
 
+  const handleOpenBackupSettings = () => {
+    setShowBackupReminder(false);
+    setSettingsInitialTab('data');
+    setSettingsOpen(true);
+  };
+
   if (isLoading) {
     return (
       <div className="min-h-screen bg-background">
@@ -81,7 +130,10 @@ const Index = () => {
         daysData={daysData}
         onConfigUpdate={updateConfig}
         onOpenCharts={() => setChartsOpen(true)}
-        onOpenSettings={() => setSettingsOpen(true)}
+        onOpenSettings={() => {
+          setSettingsInitialTab('personal');
+          setSettingsOpen(true);
+        }}
       />
       
       <main className="container mx-auto px-4 py-6 space-y-6">
@@ -121,6 +173,36 @@ const Index = () => {
         </DialogContent>
       </Dialog>
 
+      <Dialog
+        open={showBackupReminder}
+        onOpenChange={(open) => (!open ? setShowBackupReminder(false) : null)}
+      >
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Fes una còpia abans de vacances</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3 text-sm text-muted-foreground">
+            <p>
+              Et recomanem descarregar una còpia de seguretat de les dades abans de marxar
+              de vacances.
+            </p>
+            <p>
+              Obtindràs un fitxer JSON que podràs tornar a importar des de la pestanya
+              Dades si mai el necessites.
+            </p>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowBackupReminder(false)}>
+              Ara no
+            </Button>
+            <Button onClick={handleOpenBackupSettings}>
+              <Download className="mr-2 h-4 w-4" />
+              Fer còpia de seguretat
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       <SettingsDialog
         open={settingsOpen}
         config={config}
@@ -128,6 +210,7 @@ const Index = () => {
         onSave={updateConfig}
         onboardingStep={onboardingStep}
         onOnboardingStepChange={handleOnboardingStepChange}
+        initialTab={settingsInitialTab}
       />
 
       <ChartsDialog

@@ -1,6 +1,7 @@
 import type { DayData, UserConfig, WeeklySummary, WeeklyConfig, ScheduleType } from '@/types';
 import { DAYS_OF_WEEK, MAX_DAILY_WORK_HOURS, MAX_FLEXIBILITY_HOURS, MIN_WEEKLY_SURPLUS_FOR_FLEXIBILITY, SCHEDULE_HOURS } from './constants';
 import { format, startOfWeek, endOfWeek, eachDayOfInterval, getWeek, parseISO, getDay, addDays, isWithinInterval } from 'date-fns';
+import { getTotalPartialAbsenceHours, hasAbsence } from './absences';
 
 export function parseTimeToHours(time: string): number {
   const [hours, minutes] = time.split(':').map(Number);
@@ -33,15 +34,9 @@ export function capDailyHours(hours: number): number {
 
 export function calculateTotalWorkedHours(dayData: DayData | null | undefined): number {
   if (!dayData) return 0;
-  if (dayData.dayStatus === 'vacances') return 0;
+  if (hasAbsence(dayData, 'vacances')) return 0;
   const baseWorked = calculateDayWorkedHours(dayData);
-  const extraHours = dayData.dayStatus === 'assumpte_propi'
-    ? (dayData.apHours || 0)
-    : dayData.dayStatus === 'flexibilitat'
-      ? (dayData.flexHours || 0)
-      : dayData.dayStatus === 'altres'
-        ? (dayData.otherHours || 0)
-        : 0;
+  const extraHours = getTotalPartialAbsenceHours(dayData);
   return capDailyHours(baseWorked + extraHours);
 }
 
@@ -117,7 +112,7 @@ export function calculateWeeklySummary(
     }
     
     const theoretical = getTheoreticalHoursForDate(day, config);
-    if (dayData?.dayStatus === 'vacances') {
+    if (hasAbsence(dayData, 'vacances')) {
       return;
     }
     

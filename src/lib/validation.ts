@@ -11,6 +11,13 @@ const DayStatusSchema = z.enum(['laboral', 'festiu', 'vacances', 'assumpte_propi
 
 // Schema for RequestStatus
 const RequestStatusSchema = z.enum(['pendent', 'aprovat']).nullable().optional();
+const AbsenceTypeSchema = z.enum(['vacances', 'assumpte_propi', 'flexibilitat', 'altres']);
+const DayAbsenceSchema = z.object({
+  type: AbsenceTypeSchema,
+  hours: z.number().min(0).max(24).optional(),
+  comment: z.string().max(50).optional(),
+  requestStatus: RequestStatusSchema,
+});
 
 // Schema for ScheduleType
 const ScheduleTypeSchema = z.enum(['hivern', 'estiu']);
@@ -30,6 +37,7 @@ const DayDataSchema = z.object({
   flexHours: z.number().min(0).max(24).optional(),
   otherHours: z.number().min(0).max(24).optional(),
   otherComment: z.string().max(50).optional(),
+  absences: z.array(DayAbsenceSchema).max(2).optional(),
   notes: z.string().max(1000).optional(),
 });
 

@@ -4,6 +4,7 @@ import { getUserConfig, saveUserConfig, getDaysData, saveDayData } from '@/lib/s
 import { DEFAULT_USER_CONFIG, MAX_FLEXIBILITY_HOURS, MIN_WEEKLY_SURPLUS_FOR_FLEXIBILITY } from '@/lib/constants';
 import { calculateWeeklySummary } from '@/lib/timeCalculations';
 import { startOfWeek } from 'date-fns';
+import { getAbsenceHours } from '@/lib/absences';
 
 export function useTimeTracking() {
   const [config, setConfig] = useState<UserConfig>(DEFAULT_USER_CONFIG);
@@ -42,50 +43,47 @@ export function useTimeTracking() {
 
     // Handle vacation/AP approval changes
     setConfig(prev => {
-      let updatedConfig = { ...prev };
+      const updatedConfig = { ...prev };
       
       // Check if vacation status changed to approved
-      if (dayData.dayStatus === 'vacances' && dayData.requestStatus === 'aprovat') {
+      const vacation = dayData.absences?.find((absence) => absence.type === 'vacances');
+      const previousVacation = previousDayData?.absences?.find((absence) => absence.type === 'vacances');
+      const vacationApproved = vacation
+        ? vacation.requestStatus === 'aprovat'
+        : dayData.dayStatus === 'vacances' && dayData.requestStatus === 'aprovat';
+      const previousVacationApproved = previousVacation
+        ? previousVacation.requestStatus === 'aprovat'
+        : previousDayData?.dayStatus === 'vacances' && previousDayData.requestStatus === 'aprovat';
+
+      if (vacationApproved) {
         // Only add if wasn't already approved
-        const wasApproved = previousDayData?.dayStatus === 'vacances' && previousDayData?.requestStatus === 'aprovat';
-        if (!wasApproved) {
+        if (!previousVacationApproved) {
           updatedConfig.usedVacationDays = Math.min(updatedConfig.totalVacationDays, updatedConfig.usedVacationDays + 1);
         }
       }
       
       // If vacation was approved but now it's not vacation or not approved, restore the day
-      if (previousDayData?.dayStatus === 'vacances' && previousDayData?.requestStatus === 'aprovat') {
-        if (dayData.dayStatus !== 'vacances' || dayData.requestStatus !== 'aprovat') {
-          updatedConfig.usedVacationDays = Math.max(0, updatedConfig.usedVacationDays - 1);
-        }
+      if (previousVacationApproved && !vacationApproved) {
+        updatedConfig.usedVacationDays = Math.max(0, updatedConfig.usedVacationDays - 1);
       }
       
       // Track AP hours usage regardless of approval
-      const previousAPHours = previousDayData?.dayStatus === 'assumpte_propi'
-        ? (previousDayData?.apHours || 0)
-        : 0;
-      const newAPHours = dayData.dayStatus === 'assumpte_propi'
-        ? (dayData.apHours || 0)
-        : 0;
+      const previousAPHours = getAbsenceHours(previousDayData, 'assumpte_propi');
+      const newAPHours = getAbsenceHours(dayData, 'assumpte_propi');
       const difference = newAPHours - previousAPHours;
       if (difference !== 0) {
         updatedConfig.usedAPHours = Math.max(0, Math.min(updatedConfig.totalAPHours, updatedConfig.usedAPHours + difference));
       }
       
       // Check if flexibility was used
-      if (dayData.dayStatus === 'flexibilitat' && dayData.flexHours) {
-        const previousFlexUsed = previousDayData?.dayStatus === 'flexibilitat' ? (previousDayData?.flexHours || 0) : 0;
-        const difference = dayData.flexHours - previousFlexUsed;
-        if (difference !== 0) {
-          updatedConfig.usedFlexHours = Math.max(0, Math.min(MAX_FLEXIBILITY_HOURS, updatedConfig.usedFlexHours + difference));
-        }
-      }
-      
-      // If flex was used but now it's not flex, restore the hours
-      if (previousDayData?.dayStatus === 'flexibilitat' && previousDayData?.flexHours) {
-        if (dayData.dayStatus !== 'flexibilitat') {
-          updatedConfig.usedFlexHours = Math.max(0, updatedConfig.usedFlexHours - previousDayData.flexHours);
-        }
+      const previousFlexUsed = getAbsenceHours(previousDayData, 'flexibilitat');
+      const newFlexUsed = getAbsenceHours(dayData, 'flexibilitat');
+      const flexDifference = newFlexUsed - previousFlexUsed;
+      if (flexDifference !== 0) {
+        updatedConfig.usedFlexHours = Math.max(
+          0,
+          Math.min(MAX_FLEXIBILITY_HOURS, updatedConfig.usedFlexHours + flexDifference)
+        );
       }
 
       const weekStart = startOfWeek(new Date(dayData.date), { weekStartsOn: 1 });
