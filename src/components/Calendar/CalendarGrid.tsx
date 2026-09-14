@@ -9,16 +9,18 @@ import { WeeklySummaryDialog } from './WeeklySummaryDialog';
 import { MONTH_NAMES_CA } from '@/lib/constants';
 import type { DayData, UserConfig } from '@/types';
 import { hasAbsence } from '@/lib/absences';
+import { getAppDate } from '@/lib/appDate';
 
 interface CalendarGridProps {
   daysData: Record<string, DayData>;
   config: UserConfig;
   onDayUpdate: (dayData: DayData) => void;
+  onDisplayedDateChange?: (date: Date) => void;
 }
 
-export function CalendarGrid({ daysData, config, onDayUpdate }: CalendarGridProps) {
+export function CalendarGrid({ daysData, config, onDayUpdate, onDisplayedDateChange }: CalendarGridProps) {
   const getInitialDate = (year: number) => {
-    const today = new Date();
+    const today = getAppDate();
     const isInVisibleRange = today.getFullYear() === year
       || (today.getFullYear() === year + 1 && today.getMonth() === 0);
     return isInVisibleRange ? today : new Date(year, 0, 1);
@@ -32,6 +34,10 @@ export function CalendarGrid({ daysData, config, onDayUpdate }: CalendarGridProp
   useEffect(() => {
     setCurrentDate(getInitialDate(calendarYear));
   }, [calendarYear]);
+
+  useEffect(() => {
+    onDisplayedDateChange?.(currentDate);
+  }, [currentDate, onDisplayedDateChange]);
 
   const monthStart = startOfMonth(currentDate);
   const monthEnd = endOfMonth(currentDate);
@@ -75,7 +81,10 @@ export function CalendarGrid({ daysData, config, onDayUpdate }: CalendarGridProp
 
   const weekDayHeaders = ['Dl', 'Dt', 'Dc', 'Dj', 'Dv', 'Ds', 'Dg', ''];
   const requestedVacationDays = Object.values(daysData)
-    .filter((day) => hasAbsence(day, 'vacances')).length;
+    .filter((day) => {
+      const dayYear = Number(day.date.slice(0, 4));
+      return dayYear === calendarYear && hasAbsence(day, 'vacances');
+    }).length;
 
   return (
     <div className="bg-card rounded-xl shadow-lg p-6">

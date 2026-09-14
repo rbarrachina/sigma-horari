@@ -6,7 +6,7 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
-import { X, Plus, Download, Upload, Trash2, AlertTriangle, AlertCircle, Info, Github } from 'lucide-react';
+import { X, Plus, Download, Upload, Trash2, AlertTriangle, AlertCircle, Info, Github, ExternalLink } from 'lucide-react';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import type { UserConfig, DayType, SchedulePeriod, ScheduleType } from '@/types';
 import { APP_INFO, DAYS_OF_WEEK, DAY_NAMES_CA, MONTH_NAMES_CA, SCHEDULE_HOURS } from '@/lib/constants';
@@ -404,6 +404,7 @@ export function SettingsDialog({
                   min={1900}
                   max={2200}
                   value={localConfig.calendarYear}
+                  disabled={!isOnboarding}
                   onChange={(e) => {
                     if (e.target.value === '') {
                       return;
@@ -411,6 +412,9 @@ export function SettingsDialog({
                     handleCalendarYearChange(Number(e.target.value));
                   }}
                 />
+                {!isOnboarding && (
+                  <p className="text-xs text-muted-foreground">El canvi d’any es fa mitjançant el procés anual per conservar i exportar les dades.</p>
+                )}
               </div>
             </div>
 
@@ -589,6 +593,15 @@ export function SettingsDialog({
 
           {(!isOnboarding || onboardingStep >= 3) && (
             <TabsContent value="holidays" className="space-y-4 pt-4">
+              <div className="rounded-lg border bg-muted/40 p-3 text-sm text-muted-foreground">
+                Revisa les dates amb les fonts oficials:{' '}
+                <a className="font-medium text-primary underline-offset-4 hover:underline" href="https://treball.gencat.cat/ca/ambits/relacions_laborals/ci/calendari_laboral/" target="_blank" rel="noreferrer">
+                  Generalitat de Catalunya <ExternalLink className="inline h-3 w-3" />
+                </a>{' '}i{' '}
+                <a className="font-medium text-primary underline-offset-4 hover:underline" href="https://ajuntament.barcelona.cat/calendarifestius/ca/" target="_blank" rel="noreferrer">
+                  Ajuntament de Barcelona <ExternalLink className="inline h-3 w-3" />
+                </a>{' '}o a la localitat corresponent.
+              </div>
             <div className="flex gap-2">
               <Input
                 type="date"

@@ -11,9 +11,10 @@ interface HeaderProps {
   onConfigUpdate: (config: UserConfig) => void;
   onOpenCharts: () => void;
   onOpenSettings: () => void;
+  displayedDate?: Date;
 }
 
-export function Header({ config, daysData, onConfigUpdate, onOpenCharts, onOpenSettings }: HeaderProps) {
+export function Header({ config, daysData, onConfigUpdate, onOpenCharts, onOpenSettings, displayedDate }: HeaderProps) {
   const userName = config.firstName 
     ? config.firstName
     : 'Usuari';
@@ -41,6 +42,7 @@ export function Header({ config, daysData, onConfigUpdate, onOpenCharts, onOpenS
               daysData={daysData}
               variant="compact"
               onConfigUpdate={onConfigUpdate}
+              displayedDate={displayedDate}
             />
           </div>
 

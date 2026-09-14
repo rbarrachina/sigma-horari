@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import type { UserConfig, DayData } from '@/types';
-import { getUserConfig, saveUserConfig, getDaysData, saveDayData } from '@/lib/storage';
+import { getUserConfig, saveUserConfig, getDaysData, saveDayData, saveDaysData } from '@/lib/storage';
 import { DEFAULT_USER_CONFIG, MAX_FLEXIBILITY_HOURS, MIN_WEEKLY_SURPLUS_FOR_FLEXIBILITY } from '@/lib/constants';
 import { calculateWeeklySummary } from '@/lib/timeCalculations';
 import { startOfWeek } from 'date-fns';
@@ -71,7 +71,17 @@ export function useTimeTracking() {
       const previousAPHours = getAbsenceHours(previousDayData, 'assumpte_propi');
       const newAPHours = getAbsenceHours(dayData, 'assumpte_propi');
       const difference = newAPHours - previousAPHours;
-      if (difference !== 0) {
+      const previousAPCarryover = previousDayData?.absences?.find(a => a.type === 'assumpte_propi')?.sourceYear;
+      const newAPCarryover = dayData.absences?.find(a => a.type === 'assumpte_propi')?.sourceYear;
+      if (previousAPCarryover || newAPCarryover) {
+        const archiveYear = newAPCarryover || previousAPCarryover;
+        updatedConfig.annualArchives = (updatedConfig.annualArchives || []).map(archive => {
+          if (archive.year !== archiveYear) return archive;
+          const previousHours = previousAPCarryover === archiveYear ? previousAPHours : 0;
+          const nextHours = newAPCarryover === archiveYear ? newAPHours : 0;
+          return { ...archive, remainingAPHours: Math.max(0, Math.min(archive.transferredAPHours, archive.remainingAPHours - (nextHours - previousHours))) };
+        });
+      } else if (difference !== 0) {
         updatedConfig.usedAPHours = Math.max(0, Math.min(updatedConfig.totalAPHours, updatedConfig.usedAPHours + difference));
       }
       
@@ -79,7 +89,17 @@ export function useTimeTracking() {
       const previousFlexUsed = getAbsenceHours(previousDayData, 'flexibilitat');
       const newFlexUsed = getAbsenceHours(dayData, 'flexibilitat');
       const flexDifference = newFlexUsed - previousFlexUsed;
-      if (flexDifference !== 0) {
+      const previousFlexCarryover = previousDayData?.absences?.find(a => a.type === 'flexibilitat')?.sourceYear;
+      const newFlexCarryover = dayData.absences?.find(a => a.type === 'flexibilitat')?.sourceYear;
+      if (previousFlexCarryover || newFlexCarryover) {
+        const archiveYear = newFlexCarryover || previousFlexCarryover;
+        updatedConfig.annualArchives = (updatedConfig.annualArchives || []).map(archive => {
+          if (archive.year !== archiveYear) return archive;
+          const previousHours = previousFlexCarryover === archiveYear ? previousFlexUsed : 0;
+          const nextHours = newFlexCarryover === archiveYear ? newFlexUsed : 0;
+          return { ...archive, remainingFlexHours: Math.max(0, Math.min(archive.transferredFlexHours, archive.remainingFlexHours - (nextHours - previousHours))) };
+        });
+      } else if (flexDifference !== 0) {
         updatedConfig.usedFlexHours = Math.max(
           0,
           Math.min(MAX_FLEXIBILITY_HOURS, updatedConfig.usedFlexHours + flexDifference)
@@ -110,6 +130,14 @@ export function useTimeTracking() {
       }
       return prev;
     });
+  }, []);
+
+  const applyAnnualRollover = useCallback((newConfig: UserConfig, newDaysData: Record<string, DayData>) => {
+    setConfig(newConfig);
+    setDaysData(newDaysData);
+    previousDaysDataRef.current = newDaysData;
+    saveUserConfig(newConfig);
+    saveDaysData(newDaysData);
   }, []);
 
   const updateFlexibility = useCallback((hours: number) => {
@@ -171,5 +199,6 @@ export function useTimeTracking() {
     removeVacationDay,
     addAPHours,
     toggleHoliday,
+    applyAnnualRollover,
   };
 }
