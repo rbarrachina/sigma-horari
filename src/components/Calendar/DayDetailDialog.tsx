@@ -12,6 +12,7 @@ import { getTheoreticalHoursForDate, getDayTypeForDate, calculateWorkedHours, is
 import { DAY_NAMES_CA, MAX_DAILY_WORK_HOURS, MAX_FLEXIBILITY_HOURS, MONTH_NAMES_CA } from '@/lib/constants';
 import { Home, Building2, Plus, Trash2 } from 'lucide-react';
 import { getAbsenceHours, getDayAbsences, getLegacyRequestStatus, hasAbsence } from '@/lib/absences';
+import { isCarryoverSelectable } from '@/lib/annualRollover';
 
 interface DayDetailDialogProps {
   date: Date | null;
@@ -33,11 +34,13 @@ export function DayDetailDialog({ date, dayData, config, requestedVacationDays, 
   const [showSecondShift, setShowSecondShift] = useState(false);
   const [isEndTimeAuto, setIsEndTimeAuto] = useState(true);
   const [absenceType, setAbsenceType] = useState<AbsenceType>('cap');
+  const [absenceSourceYear, setAbsenceSourceYear] = useState<number | undefined>();
   const [isApproved, setIsApproved] = useState(false);
   const [absenceHours, setAbsenceHours] = useState(0);
   const [absenceMinutes, setAbsenceMinutes] = useState(0);
   const [otherComment, setOtherComment] = useState('');
   const [secondaryAbsenceType, setSecondaryAbsenceType] = useState<SecondaryAbsenceType>('cap');
+  const [secondaryAbsenceSourceYear, setSecondaryAbsenceSourceYear] = useState<number | undefined>();
   const [secondaryAbsenceHours, setSecondaryAbsenceHours] = useState(0);
   const [secondaryAbsenceMinutes, setSecondaryAbsenceMinutes] = useState(0);
   const [secondaryOtherComment, setSecondaryOtherComment] = useState('');
@@ -78,6 +81,7 @@ export function DayDetailDialog({ date, dayData, config, requestedVacationDays, 
       const storedAbsences = getDayAbsences(dayData);
       const primaryAbsence = storedAbsences[0];
       const secondaryAbsence = storedAbsences[1];
+      setAbsenceSourceYear(primaryAbsence?.sourceYear);
 
       // Determine absence type from the first stored absence
       if (primaryAbsence?.type === 'vacances') {
@@ -111,12 +115,14 @@ export function DayDetailDialog({ date, dayData, config, requestedVacationDays, 
       if (secondaryAbsence && secondaryAbsence.type !== 'vacances') {
         const hours = secondaryAbsence.hours || 0;
         setSecondaryAbsenceType(secondaryAbsence.type);
+        setSecondaryAbsenceSourceYear(secondaryAbsence.sourceYear);
         setSecondaryAbsenceHours(Math.floor(hours));
         setSecondaryAbsenceMinutes(Math.round((hours % 1) * 60));
         setSecondaryOtherComment(secondaryAbsence.type === 'altres' ? (secondaryAbsence.comment || '') : '');
         setIsSecondaryApproved(secondaryAbsence.requestStatus === 'aprovat');
       } else {
         setSecondaryAbsenceType('cap');
+        setSecondaryAbsenceSourceYear(undefined);
         setSecondaryAbsenceHours(0);
         setSecondaryAbsenceMinutes(0);
         setSecondaryOtherComment('');
@@ -132,11 +138,13 @@ export function DayDetailDialog({ date, dayData, config, requestedVacationDays, 
       setShowSecondShift(false);
       setIsEndTimeAuto(true);
       setAbsenceType('cap');
+      setAbsenceSourceYear(undefined);
       setIsApproved(false);
       setAbsenceHours(0);
       setAbsenceMinutes(0);
       setOtherComment('');
       setSecondaryAbsenceType('cap');
+      setSecondaryAbsenceSourceYear(undefined);
       setSecondaryAbsenceHours(0);
       setSecondaryAbsenceMinutes(0);
       setSecondaryOtherComment('');
@@ -156,12 +164,24 @@ export function DayDetailDialog({ date, dayData, config, requestedVacationDays, 
   const secondaryAbsenceHoursDecimal = secondaryAbsenceHours + (secondaryAbsenceMinutes / 60);
   const previousFlexHours = getAbsenceHours(dayData, 'flexibilitat');
   const previousAPHours = getAbsenceHours(dayData, 'assumpte_propi');
+  const previousAPSourceYear = dayData?.absences?.find(a => a.type === 'assumpte_propi')?.sourceYear;
+  const previousFlexSourceYear = dayData?.absences?.find(a => a.type === 'flexibilitat')?.sourceYear;
+  const carryover = [...(config.annualArchives || [])]
+    .sort((a, b) => b.year - a.year)
+    .find(archive => isCarryoverSelectable(archive.year, date));
   const availableFlexHours = Math.min(
     MAX_FLEXIBILITY_HOURS,
-    Math.max(0, config.flexibilityHours - config.usedFlexHours + previousFlexHours)
+    Math.max(0, config.flexibilityHours - config.usedFlexHours + (previousFlexSourceYear ? 0 : previousFlexHours))
   );
-  const availableAPHours = Math.max(0, config.totalAPHours - config.usedAPHours + previousAPHours);
-  const maxFlexHours = Math.min(theoreticalHours, availableFlexHours);
+  const availableAPHours = Math.max(0, config.totalAPHours - config.usedAPHours + (previousAPSourceYear ? 0 : previousAPHours));
+  const getAvailableAPForSource = (sourceYear?: number) => sourceYear && carryover
+    ? carryover.remainingAPHours + (previousAPSourceYear === sourceYear ? previousAPHours : 0)
+    : availableAPHours;
+  const getAvailableFlexForSource = (sourceYear?: number) => sourceYear && carryover
+    ? carryover.remainingFlexHours + (previousFlexSourceYear === sourceYear ? previousFlexHours : 0)
+    : availableFlexHours;
+  const selectedAvailableFlexHours = getAvailableFlexForSource(absenceSourceYear);
+  const maxFlexHours = Math.min(theoreticalHours, selectedAvailableFlexHours);
   const maxFlexHoursInt = Math.floor(maxFlexHours);
   const maxFlexMinutes = Math.min(59, Math.round((maxFlexHours - maxFlexHoursInt) * 60));
   const getFlexMinutesLimit = (hoursValue: number) => (hoursValue >= maxFlexHoursInt ? maxFlexMinutes : 59);
@@ -193,6 +213,12 @@ export function DayDetailDialog({ date, dayData, config, requestedVacationDays, 
   const canUseAP = isCalendarYear || isNextYearJanuary;
   const isAPExceptionalPeriod = isNextYearJanuary && januaryDay > 15;
   const canUseFlexibility = isCalendarYear || (isNextYearJanuary && januaryDay <= 15);
+  const absenceChoice = (type: AbsenceType | SecondaryAbsenceType, sourceYear?: number) =>
+    sourceYear ? `${type}:${sourceYear}` : type;
+  const parseAbsenceChoice = (value: string) => {
+    const [type, sourceYear] = value.split(':');
+    return { type: type as AbsenceType, sourceYear: sourceYear ? Number(sourceYear) : undefined };
+  };
 
   const getDayName = () => {
     const dayIndex = date.getDay();
@@ -224,6 +250,7 @@ export function DayDetailDialog({ date, dayData, config, requestedVacationDays, 
 
     const primary: DayAbsence = {
       type: absenceType,
+      sourceYear: (absenceType === 'assumpte_propi' || absenceType === 'flexibilitat') ? absenceSourceYear : undefined,
       hours: absenceType === 'vacances' ? undefined : getAbsenceHoursDecimal(),
       comment: absenceType === 'altres' ? otherComment.trim().slice(0, 50) || undefined : undefined,
       requestStatus: isApproved ? 'aprovat' : 'pendent',
@@ -234,6 +261,7 @@ export function DayDetailDialog({ date, dayData, config, requestedVacationDays, 
       primary,
       {
         type: secondaryAbsenceType,
+        sourceYear: (secondaryAbsenceType === 'assumpte_propi' || secondaryAbsenceType === 'flexibilitat') ? secondaryAbsenceSourceYear : undefined,
         hours: secondaryAbsenceHoursDecimal,
         comment: secondaryAbsenceType === 'altres'
           ? secondaryOtherComment.trim().slice(0, 50) || undefined
@@ -275,14 +303,14 @@ export function DayDetailDialog({ date, dayData, config, requestedVacationDays, 
     }
 
     const absences = buildAbsences();
-    const requestedAP = absences.find((absence) => absence.type === 'assumpte_propi')?.hours || 0;
-    if (requestedAP > availableAPHours) {
+    const requestedAPAbsence = absences.find((absence) => absence.type === 'assumpte_propi');
+    if ((requestedAPAbsence?.hours || 0) > getAvailableAPForSource(requestedAPAbsence?.sourceYear)) {
       setApError('No queden prou hores d’AP disponibles.');
       return;
     }
 
     const normalizedAbsences = absences.map((absence) => absence.type === 'flexibilitat'
-      ? { ...absence, hours: Math.min(absence.hours || 0, maxFlexHours) }
+      ? { ...absence, hours: Math.min(absence.hours || 0, theoreticalHours, getAvailableFlexForSource(absence.sourceYear)) }
       : absence
     );
     const newDayData: DayData = {
@@ -464,9 +492,10 @@ export function DayDetailDialog({ date, dayData, config, requestedVacationDays, 
           <div className="space-y-3">
             <Label>{secondaryAbsenceType === 'cap' ? 'Absència' : 'Absència 1'}</Label>
             <div className="flex items-center gap-2">
-              <Select value={absenceType} onValueChange={(v) => {
-                const nextAbsenceType = v as AbsenceType;
+              <Select value={absenceChoice(absenceType, absenceSourceYear)} onValueChange={(v) => {
+                const { type: nextAbsenceType, sourceYear } = parseAbsenceChoice(v);
                 setAbsenceType(nextAbsenceType);
+                setAbsenceSourceYear(sourceYear);
                 setDateRuleError(getDateRuleError(nextAbsenceType));
                 if (v !== 'vacances') {
                   setVacationError('');
@@ -503,8 +532,22 @@ export function DayDetailDialog({ date, dayData, config, requestedVacationDays, 
                 <SelectContent>
                   <SelectItem value="cap">Cap absència</SelectItem>
                   <SelectItem value="vacances" disabled={!canUseVacation}>Vacances</SelectItem>
-                  <SelectItem value="assumpte_propi" disabled={!canUseAP}>Assumpte propi (AP)</SelectItem>
-                  <SelectItem value="flexibilitat" disabled={!canUseFlexibility}>Flexibilitat horària (FX)</SelectItem>
+                  <SelectItem value="assumpte_propi" disabled={!canUseAP}>
+                    Assumpte propi (AP){carryover ? ` ${config.calendarYear}` : ''}
+                  </SelectItem>
+                  {carryover && (
+                    <SelectItem value={`assumpte_propi:${carryover.year}`} disabled={carryover.remainingAPHours <= 0}>
+                      Assumpte propi (AP) {carryover.year}
+                    </SelectItem>
+                  )}
+                  <SelectItem value="flexibilitat" disabled={!canUseFlexibility}>
+                    Flexibilitat horària (FX){carryover ? ` ${config.calendarYear}` : ''}
+                  </SelectItem>
+                  {carryover && (
+                    <SelectItem value={`flexibilitat:${carryover.year}`} disabled={carryover.remainingFlexHours <= 0}>
+                      Flexibilitat horària (FX) {carryover.year}
+                    </SelectItem>
+                  )}
                   <SelectItem value="altres">Altres</SelectItem>
                 </SelectContent>
               </Select>
@@ -631,10 +674,12 @@ export function DayDetailDialog({ date, dayData, config, requestedVacationDays, 
               <Label>Absència 2</Label>
               <div className="flex items-center gap-2">
                 <Select
-                  value={secondaryAbsenceType}
+                  value={absenceChoice(secondaryAbsenceType, secondaryAbsenceSourceYear)}
                   onValueChange={(value) => {
-                    const nextType = value as SecondaryAbsenceType;
+                    const { type, sourceYear } = parseAbsenceChoice(value);
+                    const nextType = type as SecondaryAbsenceType;
                     setSecondaryAbsenceType(nextType);
+                    setSecondaryAbsenceSourceYear(sourceYear);
                     setDateRuleError(getDateRuleError(nextType));
                     setApError('');
                     if (nextType !== 'altres') setSecondaryOtherComment('');
@@ -648,14 +693,24 @@ export function DayDetailDialog({ date, dayData, config, requestedVacationDays, 
                       value="assumpte_propi"
                       disabled={!canUseAP || absenceType === 'assumpte_propi'}
                     >
-                      Assumpte propi (AP)
+                      Assumpte propi (AP){carryover ? ` ${config.calendarYear}` : ''}
                     </SelectItem>
+                    {carryover && absenceType !== 'assumpte_propi' && (
+                      <SelectItem value={`assumpte_propi:${carryover.year}`} disabled={carryover.remainingAPHours <= 0}>
+                        Assumpte propi (AP) {carryover.year}
+                      </SelectItem>
+                    )}
                     <SelectItem
                       value="flexibilitat"
                       disabled={!canUseFlexibility || absenceType === 'flexibilitat'}
                     >
-                      Flexibilitat horària (FX)
+                      Flexibilitat horària (FX){carryover ? ` ${config.calendarYear}` : ''}
                     </SelectItem>
+                    {carryover && absenceType !== 'flexibilitat' && (
+                      <SelectItem value={`flexibilitat:${carryover.year}`} disabled={carryover.remainingFlexHours <= 0}>
+                        Flexibilitat horària (FX) {carryover.year}
+                      </SelectItem>
+                    )}
                     <SelectItem value="altres" disabled={absenceType === 'altres'}>
                       Altres
                     </SelectItem>
@@ -679,6 +734,7 @@ export function DayDetailDialog({ date, dayData, config, requestedVacationDays, 
                   <Trash2 className="h-4 w-4" />
                 </Button>
               </div>
+
 
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
