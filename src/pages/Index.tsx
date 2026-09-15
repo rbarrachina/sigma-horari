@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Header } from '@/components/Header';
 import { CalendarGrid } from '@/components/Calendar/CalendarGrid';
 import { SettingsDialog, type SettingsTab } from '@/components/Settings/SettingsDialog';
@@ -19,9 +19,13 @@ import {
 } from '@/lib/storage';
 import { isAnnualBackupReminderDue } from '@/lib/backupReminder';
 import { Download } from 'lucide-react';
+import { AnnualRolloverDialog } from '@/components/AnnualRolloverDialog';
+import { getAppDate, getSimulatedDate } from '@/lib/appDate';
+import { isAnnualRolloverDue } from '@/lib/annualRollover';
+import { shouldShowReleaseNotes } from '@/lib/releaseNotes';
 
 const Index = () => {
-  const { config, daysData, isLoading, updateConfig, updateDayData } = useTimeTracking();
+  const { config, daysData, isLoading, updateConfig, updateDayData, applyAnnualRollover, saveManualWeeklySummary } = useTimeTracking();
   const [chartsOpen, setChartsOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [onboardingStep, setOnboardingStep] = useState(0);
@@ -30,11 +34,18 @@ const Index = () => {
   const [pendingBackupReminderYear, setPendingBackupReminderYear] = useState<number | null>(null);
   const [startupChecked, setStartupChecked] = useState(false);
   const [settingsInitialTab, setSettingsInitialTab] = useState<SettingsTab>('personal');
+  const [showAnnualRollover, setShowAnnualRollover] = useState(false);
+  const [displayedDate, setDisplayedDate] = useState<Date>(getAppDate());
+  const initialSetupSessionRef = useRef(false);
+  const today = getAppDate();
+  const simulatedDate = getSimulatedDate();
   const isOnboarding = onboardingStep > 0;
 
   useEffect(() => {
     if (isLoading) return;
     const storedStep = getOnboardingStep();
+    const initialSetup = !hasStoredUserConfig() || storedStep > 0 || initialSetupSessionRef.current;
+    if (initialSetup) initialSetupSessionRef.current = true;
     let nextStep = storedStep;
     if (!hasStoredUserConfig() && storedStep === 0) {
       nextStep = 1;
@@ -46,15 +57,20 @@ const Index = () => {
     }
 
     const lastSeenVersion = getLastSeenVersion();
-    if (lastSeenVersion !== APP_INFO.version) {
+    if (initialSetup) {
+      saveLastSeenVersion(APP_INFO.version);
+    } else if (shouldShowReleaseNotes(lastSeenVersion, APP_INFO.version, initialSetup)) {
       setShowReleaseNotes(true);
     }
-    const now = new Date();
-    if (isAnnualBackupReminderDue(now, getLastBackupReminderYear())) {
+    const now = getAppDate();
+    if (!initialSetup && isAnnualBackupReminderDue(now, getLastBackupReminderYear())) {
       setPendingBackupReminderYear(now.getFullYear());
     }
     setStartupChecked(true);
-  }, [isLoading]);
+    if (!initialSetup && hasStoredUserConfig() && getOnboardingStep() === 0 && isAnnualRolloverDue(config, getAppDate())) {
+      setShowAnnualRollover(true);
+    }
+  }, [isLoading, config]);
 
   useEffect(() => {
     if (onboardingStep > 0) {
@@ -125,6 +141,11 @@ const Index = () => {
 
   return (
     <div className="min-h-screen bg-background">
+      {simulatedDate && (
+        <div className="bg-amber-100 px-4 py-2 text-center text-sm font-medium text-amber-950">
+          Mode de proves — data simulada: {simulatedDate}
+        </div>
+      )}
       <Header
         config={config}
         daysData={daysData}
@@ -134,6 +155,7 @@ const Index = () => {
           setSettingsInitialTab('personal');
           setSettingsOpen(true);
         }}
+        displayedDate={displayedDate}
       />
       
       <main className="container mx-auto px-4 py-6 space-y-6">
@@ -149,6 +171,8 @@ const Index = () => {
             daysData={daysData}
             config={config}
             onDayUpdate={updateDayData}
+            onDisplayedDateChange={setDisplayedDate}
+            onManualWeeklySummarySave={saveManualWeeklySummary}
           />
         )}
         
@@ -218,6 +242,20 @@ const Index = () => {
         config={config}
         daysData={daysData}
         onClose={() => setChartsOpen(false)}
+      />
+
+      <AnnualRolloverDialog
+        open={showAnnualRollover}
+        config={config}
+        daysData={daysData}
+        today={today}
+        onCancel={() => setShowAnnualRollover(false)}
+        onComplete={(nextConfig, nextDaysData) => {
+          applyAnnualRollover(nextConfig, nextDaysData);
+          setShowAnnualRollover(false);
+          setSettingsInitialTab('holidays');
+          setSettingsOpen(true);
+        }}
       />
     </div>
   );

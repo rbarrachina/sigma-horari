@@ -11,11 +11,13 @@ interface CalendarDayProps {
   config: UserConfig;
   isCurrentMonth: boolean;
   isInCalendarYear: boolean;
+  isReadOnly?: boolean;
   isToday: boolean;
+  hasManualWeeklySummary: boolean;
   onClick: () => void;
 }
 
-export function CalendarDay({ date, dayData, config, isCurrentMonth, isInCalendarYear, isToday, onClick }: CalendarDayProps) {
+export function CalendarDay({ date, dayData, config, isCurrentMonth, isInCalendarYear, isReadOnly = false, isToday, hasManualWeeklySummary, onClick }: CalendarDayProps) {
   const weekend = isWeekend(date);
   const holiday = isHoliday(date, config.holidays);
   const dateStr = format(date, 'yyyy-MM-dd');
@@ -27,6 +29,9 @@ export function CalendarDay({ date, dayData, config, isCurrentMonth, isInCalenda
     if (weekend) return 'bg-[hsl(var(--status-weekend))] text-foreground';
     // Holiday = purple
     if (holiday) return 'bg-[hsl(var(--status-holiday))] text-[hsl(var(--status-holiday-foreground))]';
+    if (hasManualWeeklySummary) {
+      return 'bg-[hsl(var(--status-complete))] text-[hsl(var(--status-complete-foreground))]';
+    }
     
     // Vacances = blue
     if (hasAbsence(dayData, 'vacances')) {
@@ -128,14 +133,14 @@ export function CalendarDay({ date, dayData, config, isCurrentMonth, isInCalenda
   return (
     <button
       onClick={onClick}
-      disabled={weekend || !isInCalendarYear}
+      disabled={weekend || !isInCalendarYear || isReadOnly}
       className={cn(
         'relative p-2 h-20 w-full rounded-lg transition-all duration-200 border',
         'hover:shadow-md hover:scale-[1.02] focus:outline-none focus:ring-2 focus:ring-primary',
         getStatusColor(),
         !isCurrentMonth && 'opacity-40',
         isToday && 'ring-2 ring-primary ring-offset-2',
-        (weekend || !isInCalendarYear) && 'cursor-default hover:scale-100 hover:shadow-none'
+        (weekend || !isInCalendarYear || isReadOnly) && 'cursor-default hover:scale-100 hover:shadow-none'
       )}
     >
       <div className="flex flex-col h-full">
@@ -150,7 +155,11 @@ export function CalendarDay({ date, dayData, config, isCurrentMonth, isInCalenda
         
         {!weekend && isInCalendarYear && (
           <div className="flex-1 flex flex-col justify-end">
-            {shifts.length > 0 && (
+            {holiday ? (
+              <div className="text-xs opacity-80 font-medium">Festiu</div>
+            ) : hasManualWeeklySummary ? (
+              <div className="text-xs opacity-80 font-medium">Edició setmanal</div>
+            ) : shifts.length > 0 && (
               <div className="text-xs opacity-80 space-y-0.5">
                 {shifts.map((shift) => (
                   <div key={shift}>{shift}</div>

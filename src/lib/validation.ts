@@ -14,6 +14,7 @@ const RequestStatusSchema = z.enum(['pendent', 'aprovat']).nullable().optional()
 const AbsenceTypeSchema = z.enum(['vacances', 'assumpte_propi', 'flexibilitat', 'altres']);
 const DayAbsenceSchema = z.object({
   type: AbsenceTypeSchema,
+  sourceYear: z.number().min(1900).max(2200).optional(),
   hours: z.number().min(0).max(24).optional(),
   comment: z.string().max(50).optional(),
   requestStatus: RequestStatusSchema,
@@ -74,6 +75,29 @@ const UserConfigSchema = z.object({
   usedFlexHours: z.number().min(0).max(25),
   otherNotes: z.string().max(1000).default(''),
   holidays: z.array(z.string().regex(/^\d{4}-\d{2}-\d{2}$/)).max(100),
+  annualArchives: z.array(z.object({
+    year: z.number().min(1900).max(2200),
+    totalVacationDays: z.number().min(0).max(365),
+    usedVacationDays: z.number().min(0).max(365),
+    totalAPHours: z.number().min(0).max(500),
+    usedAPHours: z.number().min(0).max(500),
+    totalFlexHours: z.number().min(0).max(500),
+    usedFlexHours: z.number().min(0).max(500),
+    transferredAPHours: z.number().min(0).max(500),
+    transferredFlexHours: z.number().min(0).max(500),
+    remainingAPHours: z.number().min(0).max(500),
+    remainingFlexHours: z.number().min(0).max(500),
+    closedAt: z.string(),
+  })).max(100).optional(),
+  manualWeeklySummaries: z.record(
+    z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+    z.object({
+      weekStart: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+      theoreticalHours: z.number().min(0).max(168),
+      workedHours: z.number().min(0).max(168),
+      notes: z.string().max(500).optional(),
+    })
+  ).optional(),
 });
 
 // Schema for DaysData record

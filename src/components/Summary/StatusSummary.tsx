@@ -4,24 +4,28 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '
 import { Progress } from '@/components/ui/progress';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
-import { Plane, Clock, Sparkles, NotebookText } from 'lucide-react';
+import { Plane, Clock, Sparkles, NotebookText, History } from 'lucide-react';
 import { MAX_FLEXIBILITY_HOURS, MONTH_NAMES_CA } from '@/lib/constants';
 import type { DayData, UserConfig } from '@/types';
 import { format, parseISO } from 'date-fns';
 import { getDayAbsences } from '@/lib/absences';
+import { getAppDate } from '@/lib/appDate';
+import { isCarryoverSummaryVisible } from '@/lib/annualRollover';
 
 interface StatusSummaryProps {
   config: UserConfig;
   daysData: Record<string, DayData>;
   variant?: 'default' | 'compact';
   onConfigUpdate?: (config: UserConfig) => void;
+  displayedDate?: Date;
 }
 
-export function StatusSummary({ config, daysData, variant = 'default', onConfigUpdate }: StatusSummaryProps) {
+export function StatusSummary({ config, daysData, variant = 'default', onConfigUpdate, displayedDate }: StatusSummaryProps) {
   const [vacationDialogOpen, setVacationDialogOpen] = useState(false);
   const [apDialogOpen, setApDialogOpen] = useState(false);
   const [flexDialogOpen, setFlexDialogOpen] = useState(false);
   const [otherDialogOpen, setOtherDialogOpen] = useState(false);
+  const [carryoverDialogOpen, setCarryoverDialogOpen] = useState(false);
   const [otherNotesDraft, setOtherNotesDraft] = useState(config.otherNotes || '');
   const formatDuration = (hours: number): string => {
     const wholeHours = Math.floor(hours);
@@ -43,9 +47,15 @@ export function StatusSummary({ config, daysData, variant = 'default', onConfigU
   const absenceEntries = Object.values(daysData).flatMap((day) =>
     getDayAbsences(day).map((absence) => ({ day, absence }))
   );
-  const vacationEntries = absenceEntries.filter(({ absence }) => absence.type === 'vacances');
-  const apEntries = absenceEntries.filter(({ absence }) => absence.type === 'assumpte_propi');
-  const flexEntries = absenceEntries.filter(({ absence }) => absence.type === 'flexibilitat');
+  const currentAbsenceEntries = absenceEntries.filter(({ absence, day }) => {
+    const parsed = parseISO(day.date);
+    const isCurrentRange = parsed.getFullYear() === config.calendarYear
+      || (parsed.getFullYear() === config.calendarYear + 1 && parsed.getMonth() === 0);
+    return isCurrentRange && !absence.sourceYear;
+  });
+  const vacationEntries = currentAbsenceEntries.filter(({ absence }) => absence.type === 'vacances');
+  const apEntries = currentAbsenceEntries.filter(({ absence }) => absence.type === 'assumpte_propi');
+  const flexEntries = currentAbsenceEntries.filter(({ absence }) => absence.type === 'flexibilitat');
   const requestedVacationDays = vacationEntries.length;
   const pendingVacationDays = vacationEntries
     .filter(({ absence }) => absence.requestStatus === 'pendent').length;
@@ -112,7 +122,9 @@ export function StatusSummary({ config, daysData, variant = 'default', onConfigU
   };
   const formatAPHours = (hours: number | undefined) => formatDuration(hours || 0);
   const formatFlexHours = (hours: number | undefined) => formatDuration(hours || 0);
-  const hasOtherNotes = config.otherNotes.trim().length > 0;
+  const annualArchives = [...(config.annualArchives || [])].sort((a, b) => b.year - a.year);
+  const hasOtherNotes = config.otherNotes.trim().length > 0 || annualArchives.length > 0;
+  const visibleCarryover = annualArchives.find(archive => isCarryoverSummaryVisible(archive.year, displayedDate || getAppDate()));
   const openOtherDialog = () => {
     setOtherNotesDraft(config.otherNotes || '');
     setOtherDialogOpen(true);
@@ -334,6 +346,18 @@ export function StatusSummary({ config, daysData, variant = 'default', onConfigU
             {otherNotesDraft.length}/1000
           </p>
         </div>
+        {annualArchives.length > 0 && (
+          <div className="space-y-4 border-t pt-4">
+            {annualArchives.map(archive => (
+              <section key={archive.year} className="space-y-1 text-sm">
+                <h3 className="font-semibold">{archive.year}</h3>
+                <p>Vacances: {archive.usedVacationDays} dies utilitzats de {archive.totalVacationDays} dies. No traspassats.</p>
+                <p>AP: {formatDuration(archive.usedAPHours)} gastades de {formatDuration(archive.totalAPHours)}. {formatDuration(archive.transferredAPHours)} traspassades.</p>
+                <p>FX: {formatDuration(archive.usedFlexHours)} gastades de {formatDuration(archive.totalFlexHours)}. {formatDuration(archive.transferredFlexHours)} traspassades.</p>
+              </section>
+            ))}
+          </div>
+        )}
         <DialogFooter>
           <Button variant="outline" onClick={() => setOtherDialogOpen(false)}>
             Cancel·lar
@@ -354,6 +378,34 @@ export function StatusSummary({ config, daysData, variant = 'default', onConfigU
       )}
     </div>
   );
+  const carryoverDialog = visibleCarryover ? (
+    <Dialog open={carryoverDialogOpen} onOpenChange={setCarryoverDialogOpen}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <History className="h-5 w-5 text-amber-600" />
+            Romanent {visibleCarryover.year}
+          </DialogTitle>
+        </DialogHeader>
+        <div className="space-y-4 text-sm">
+          <div className="rounded-lg border p-3">
+            <p className="font-semibold">Assumptes propis (AP)</p>
+            <p className="text-muted-foreground">Traspassades: {formatDuration(visibleCarryover.transferredAPHours)}</p>
+            <p className="text-muted-foreground">Gastades: {formatDuration(visibleCarryover.transferredAPHours - visibleCarryover.remainingAPHours)}</p>
+            <p className="font-medium">Disponibles: {formatDuration(visibleCarryover.remainingAPHours)}</p>
+          </div>
+          <div className="rounded-lg border p-3">
+            <p className="font-semibold">Flexibilitat horària (FX)</p>
+            <p className="text-muted-foreground">Traspassades: {formatDuration(visibleCarryover.transferredFlexHours)}</p>
+            <p className="text-muted-foreground">Gastades: {formatDuration(visibleCarryover.transferredFlexHours - visibleCarryover.remainingFlexHours)}</p>
+            <p className="font-medium">Disponibles: {formatDuration(visibleCarryover.remainingFlexHours)}</p>
+          </div>
+          <p className="text-xs text-muted-foreground">Es poden imputar a dies de l’1 al 15 de gener.</p>
+        </div>
+        <DialogFooter><Button onClick={() => setCarryoverDialogOpen(false)}>Tancar</Button></DialogFooter>
+      </DialogContent>
+    </Dialog>
+  ) : null;
 
   if (variant === 'compact') {
     return (
@@ -362,7 +414,18 @@ export function StatusSummary({ config, daysData, variant = 'default', onConfigU
         {apDialog}
         {flexDialog}
         {otherDialog}
+        {carryoverDialog}
         <div className="flex flex-wrap items-center gap-3">
+          {visibleCarryover && (
+            <button
+              type="button"
+              onClick={() => setCarryoverDialogOpen(true)}
+              className="flex items-center gap-2 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-950 shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+            >
+              <History className="h-4 w-4 text-amber-600" />
+              <span className="font-medium">Romanent {visibleCarryover.year}</span>
+            </button>
+          )}
           {summaryItems.map((item) => {
             const Icon = item.icon;
             const content = (
@@ -435,6 +498,7 @@ export function StatusSummary({ config, daysData, variant = 'default', onConfigU
       {apDialog}
       {flexDialog}
       {otherDialog}
+      {carryoverDialog}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         {summaryItems.map((item) => {
           const Icon = item.icon;

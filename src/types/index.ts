@@ -6,9 +6,25 @@ export type AbsenceType = 'vacances' | 'assumpte_propi' | 'flexibilitat' | 'altr
 
 export interface DayAbsence {
   type: AbsenceType;
+  sourceYear?: number; // Previous calendar year when consuming an annual carryover
   hours?: number;
   comment?: string;
   requestStatus: RequestStatus;
+}
+
+export interface AnnualArchive {
+  year: number;
+  totalVacationDays: number;
+  usedVacationDays: number;
+  totalAPHours: number;
+  usedAPHours: number;
+  totalFlexHours: number;
+  usedFlexHours: number;
+  transferredAPHours: number;
+  transferredFlexHours: number;
+  remainingAPHours: number;
+  remainingFlexHours: number;
+  closedAt: string;
 }
 
 export interface DayData {
@@ -58,6 +74,15 @@ export interface UserConfig {
   usedFlexHours: number; // Used from accumulated
   otherNotes: string; // Free-form notes for pending schedule-related items
   holidays: string[]; // Array of YYYY-MM-DD
+  annualArchives?: AnnualArchive[];
+  manualWeeklySummaries?: Record<string, ManualWeeklySummary>;
+}
+
+export interface ManualWeeklySummary {
+  weekStart: string; // Monday, YYYY-MM-DD
+  theoreticalHours: number;
+  workedHours: number;
+  notes?: string;
 }
 
 export interface WeeklySummary {

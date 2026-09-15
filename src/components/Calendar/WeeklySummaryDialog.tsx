@@ -1,9 +1,13 @@
+import { useEffect, useState } from 'react';
 import { format, eachDayOfInterval, getWeek } from 'date-fns';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
-import type { DayData, UserConfig } from '@/types';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
+import type { DayData, ManualWeeklySummary, UserConfig } from '@/types';
 import { 
   getTheoreticalHoursForDate, 
   getDayTypeForDate, 
@@ -14,9 +18,10 @@ import {
   isWeekend,
   formatHoursDisplay,
   formatHoursMinutes
+  , calculateWeeklySummary
 } from '@/lib/timeCalculations';
 import { DAY_NAMES_CA, MONTH_NAMES_CA } from '@/lib/constants';
-import { Home, Building2, Plane, Clock, Sparkles, Calendar, Check, MoreHorizontal, AlertTriangle } from 'lucide-react';
+import { Home, Building2, Plane, Clock, Sparkles, Calendar, Check, MoreHorizontal, AlertTriangle, Pencil, Trash2, FilePenLine } from 'lucide-react';
 import { getDayAbsences, getTotalPartialAbsenceHours, hasAbsence } from '@/lib/absences';
 
 interface WeeklySummaryDialogProps {
@@ -25,6 +30,7 @@ interface WeeklySummaryDialogProps {
   daysData: Record<string, DayData>;
   config: UserConfig;
   onClose: () => void;
+  onManualSummarySave: (summary: ManualWeeklySummary | null, weekStart: Date) => void;
 }
 
 export function WeeklySummaryDialog({ 
@@ -32,15 +38,41 @@ export function WeeklySummaryDialog({
   weekEnd, 
   daysData, 
   config, 
-  onClose
+  onClose,
+  onManualSummarySave,
 }: WeeklySummaryDialogProps) {
+  const [editingManual, setEditingManual] = useState(false);
+  const [theoreticalHours, setTheoreticalHours] = useState(0);
+  const [theoreticalMinutes, setTheoreticalMinutes] = useState(0);
+  const [workedHours, setWorkedHours] = useState(0);
+  const [workedMinutes, setWorkedMinutes] = useState(0);
+  const [manualNotes, setManualNotes] = useState('');
+
+  useEffect(() => {
+    if (!weekStart) return;
+    const key = format(weekStart, 'yyyy-MM-dd');
+    const stored = config.manualWeeklySummaries?.[key];
+    const summariesWithoutCurrent = { ...(config.manualWeeklySummaries || {}) };
+    delete summariesWithoutCurrent[key];
+    const calculated = calculateWeeklySummary(weekStart, daysData, {
+      ...config,
+      manualWeeklySummaries: summariesWithoutCurrent,
+    });
+    const theoreticalTotalMinutes = Math.round((stored?.theoreticalHours ?? calculated.theoreticalHours) * 60);
+    const workedTotalMinutes = Math.round((stored?.workedHours ?? calculated.workedHours) * 60);
+    setTheoreticalHours(Math.floor(theoreticalTotalMinutes / 60));
+    setTheoreticalMinutes(theoreticalTotalMinutes % 60);
+    setWorkedHours(Math.floor(workedTotalMinutes / 60));
+    setWorkedMinutes(workedTotalMinutes % 60);
+    setManualNotes(stored?.notes || '');
+    setEditingManual(false);
+  }, [weekStart, config, daysData]);
+
   if (!weekStart || !weekEnd) return null;
 
-  const days = eachDayOfInterval({ start: weekStart, end: weekEnd }).filter(
-    (day) => day.getFullYear() === config.calendarYear
-  );
-  const hasAnyData = days.some((day) => !!daysData[format(day, 'yyyy-MM-dd')]);
-  if (!hasAnyData) return null;
+  const days = eachDayOfInterval({ start: weekStart, end: weekEnd });
+  const weekKey = format(weekStart, 'yyyy-MM-dd');
+  const manualSummary = config.manualWeeklySummaries?.[weekKey];
   const displayStart = days[0] ?? weekStart;
   const displayEnd = days[days.length - 1] ?? weekEnd;
   const weekNumber = getWeek(displayStart, { weekStartsOn: 1 });
@@ -68,7 +100,20 @@ export function WeeklySummaryDialog({
     totalWorked += calculateTotalWorkedHours(dayData);
   }
 
-  const difference = totalWorked - totalTheoretical;
+  const effectiveSummary = calculateWeeklySummary(weekStart, daysData, config);
+  totalTheoretical = effectiveSummary.theoreticalHours;
+  totalWorked = effectiveSummary.workedHours;
+  const difference = effectiveSummary.difference;
+
+  const saveManualSummary = () => {
+    onManualSummarySave({
+      weekStart: weekKey,
+      theoreticalHours: theoreticalHours + theoreticalMinutes / 60,
+      workedHours: workedHours + workedMinutes / 60,
+      notes: manualNotes.trim() || undefined,
+    }, weekStart);
+    setEditingManual(false);
+  };
 
   const getStatusCardClass = (dayData: DayData | undefined, holiday: boolean, worked: number, theoretical: number) => {
     if (holiday) return 'bg-[hsl(var(--status-holiday)/0.15)] border-[hsl(var(--status-holiday)/0.4)]';
@@ -106,15 +151,30 @@ export function WeeklySummaryDialog({
 
   return (
     <Dialog open={!!weekStart} onOpenChange={() => onClose()}>
-      <DialogContent className="sm:max-w-4xl max-h-[90vh] overflow-y-auto">
-        <DialogHeader>
-          <div className="flex flex-wrap items-baseline gap-3">
-            <DialogTitle className="text-2xl font-semibold tracking-tight text-foreground">
-              Resum Setmana {weekNumber}
-            </DialogTitle>
-            <p className="text-base font-medium text-muted-foreground">
-              {format(displayStart, 'd')} - {format(displayEnd, 'd')} de {MONTH_NAMES_CA[displayStart.getMonth()]}
-            </p>
+      <DialogContent className="sm:max-w-6xl max-h-[90vh] overflow-y-auto">
+        <DialogHeader className="pr-8">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div className="flex flex-wrap items-baseline gap-3">
+              <DialogTitle className="text-2xl font-semibold tracking-tight text-foreground">
+                Resum Setmana {weekNumber}
+              </DialogTitle>
+              <p className="text-base font-medium text-muted-foreground">
+                {format(displayStart, 'd')} - {format(displayEnd, 'd')} de {MONTH_NAMES_CA[displayStart.getMonth()]}
+              </p>
+            </div>
+            {!editingManual && (
+              <div className="flex shrink-0 gap-1">
+                <Button variant="ghost" size="sm" className="text-muted-foreground" onClick={() => setEditingManual(true)}>
+                  <Pencil className="mr-1.5 h-3.5 w-3.5" />
+                  {manualSummary ? 'Editar resum manual' : 'Introduir resum manual'}
+                </Button>
+                {manualSummary && (
+                  <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-destructive" title="Eliminar resum manual" onClick={() => onManualSummarySave(null, weekStart)}>
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </Button>
+                )}
+              </div>
+            )}
           </div>
         </DialogHeader>
 
@@ -136,10 +196,66 @@ export function WeeklySummaryDialog({
                 </p>
               </div>
             </div>
+            {manualSummary && (
+              <div className="mt-4 space-y-2 text-center">
+                <div className="flex justify-center">
+                  <div className="inline-flex items-center gap-2 rounded-full border border-[hsl(var(--status-complete)/0.45)] bg-[hsl(var(--status-complete)/0.12)] px-3 py-1.5 text-sm font-semibold text-[hsl(var(--status-complete))]">
+                    <FilePenLine className="h-4 w-4" />
+                    Resum introduït manualment
+                  </div>
+                </div>
+                {manualSummary.notes && (
+                  <p className="mx-auto max-w-2xl whitespace-pre-wrap text-sm text-foreground">
+                    <span className="font-semibold">Observacions:</span> {manualSummary.notes}
+                  </p>
+                )}
+              </div>
+            )}
           </div>
+
+          {editingManual && (
+            <div className="space-y-4 rounded-lg border bg-muted/20 p-4">
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div className="space-y-2">
+                  <Label>Hores teòriques</Label>
+                  <div className="flex items-center gap-2">
+                    <Input aria-label="Hores teòriques" className="w-20" type="number" min={0} max={168} value={theoreticalHours} onChange={e => setTheoreticalHours(Math.max(0, Number(e.target.value) || 0))} />
+                    <span>h</span>
+                    <Input aria-label="Minuts teòrics" className="w-20" type="number" min={0} max={59} value={theoreticalMinutes} onChange={e => setTheoreticalMinutes(Math.min(59, Math.max(0, Number(e.target.value) || 0)))} />
+                    <span>min</span>
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <Label>Hores treballades</Label>
+                  <div className="flex items-center gap-2">
+                    <Input aria-label="Hores treballades" className="w-20" type="number" min={0} max={168} value={workedHours} onChange={e => setWorkedHours(Math.max(0, Number(e.target.value) || 0))} />
+                    <span>h</span>
+                    <Input aria-label="Minuts treballats" className="w-20" type="number" min={0} max={59} value={workedMinutes} onChange={e => setWorkedMinutes(Math.min(59, Math.max(0, Number(e.target.value) || 0)))} />
+                    <span>min</span>
+                  </div>
+                </div>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="manual-week-notes">Observacions</Label>
+                <Textarea
+                  id="manual-week-notes"
+                  className="placeholder:text-muted-foreground/50"
+                  maxLength={500}
+                  value={manualNotes}
+                  onChange={e => setManualNotes(e.target.value)}
+                  placeholder="Opcional"
+                />
+              </div>
+              <div className="flex justify-end gap-2">
+                <Button variant="ghost" size="sm" onClick={() => setEditingManual(false)}>Cancel·lar</Button>
+                <Button size="sm" onClick={saveManualSummary}>Desar resum</Button>
+              </div>
+            </div>
+          )}
 
           <Separator />
 
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
           {days.map((day) => {
             if (isWeekend(day)) return null;
             
@@ -164,9 +280,9 @@ export function WeeklySummaryDialog({
             return (
               <div
                 key={dateStr}
-                className={`p-4 rounded-lg border ${statusCardClass}`}
+                className={`rounded-lg border p-3 ${statusCardClass}`}
               >
-                <div className="grid grid-cols-1 md:grid-cols-[1fr_1.2fr] gap-4">
+                <div className="flex h-full flex-col gap-4">
                   <div className="flex flex-col gap-2">
                     <div className="text-lg font-semibold">
                       {getDayName(day)}, {format(day, 'd')}
@@ -220,7 +336,7 @@ export function WeeklySummaryDialog({
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-sm">
+                  <div className="mt-auto grid grid-cols-1 gap-3 border-t border-current/10 pt-3 text-sm">
                     <div className="space-y-1">
                       <p className="text-muted-foreground">Horari</p>
                       {holiday || hasAbsence(dayData, 'vacances') ? (
@@ -261,6 +377,7 @@ export function WeeklySummaryDialog({
               </div>
             );
           })}
+          </div>
         </div>
 
         <DialogFooter>

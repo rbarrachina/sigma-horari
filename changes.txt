@@ -1,6 +1,14 @@
 Release notes for sigma-horari
 
 
+Changes v1.8
+---------------------------------------------------------------------------------------
+- Nou canvi d’any guiat amb còpia de seguretat obligatòria i conservació del romanent d’AP i FX.
+- Els festius fixos es carreguen automàticament en iniciar un calendari o preparar l’any següent.
+- La primera setmana de gener conserva els dies necessaris de desembre i les absències ja introduïdes.
+- Nou resum setmanal manual que substitueix el còmput diari d’hores sense perdre vacances, AP, FX ni Altres.
+- El balanç mensual incorpora els resums manuals sense duplicar les dades diàries.
+
 Changes v1.7
 ---------------------------------------------------------------------------------------
 - El balanç mensual mostra també les hores de flexibilitat horària computades cada mes.

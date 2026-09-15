@@ -2,18 +2,14 @@
 export const BARCELONA_HOLIDAYS_2026 = [
   '2026-01-01', // Cap d'Any
   '2026-01-06', // Reis
-  '2026-04-03', // Divendres Sant
-  '2026-04-06', // Dilluns de Pasqua
   '2026-05-01', // Festa del Treball
   '2026-06-24', // Sant Joan
-  '2026-08-15', // L'Assumpció
   '2026-09-11', // Diada de Catalunya
-  '2026-09-24', // La Mercè
   '2026-10-12', // Festa Nacional d'Espanya
   '2026-11-01', // Tots Sants
+  '2026-12-06', // Dia de la Constitució
   '2026-12-08', // La Immaculada
   '2026-12-25', // Nadal
-  '2026-12-26', // Sant Esteve
 ];
 
 export const DEFAULT_CALENDAR_YEAR = 2026;
@@ -115,7 +111,7 @@ export const APP_INFO = {
   author: 'Rafa Barrachina',
   license: 'Apache License 2.0',
   year: 2026,
-  version: '1.7',
+  version: '1.8',
 };
 
 const parseReleaseNotes = (raw: string): Record<string, string[]> => {
