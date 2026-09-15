@@ -22,6 +22,7 @@ import { Download } from 'lucide-react';
 import { AnnualRolloverDialog } from '@/components/AnnualRolloverDialog';
 import { getAppDate, getSimulatedDate } from '@/lib/appDate';
 import { isAnnualRolloverDue } from '@/lib/annualRollover';
+import { shouldShowReleaseNotes } from '@/lib/releaseNotes';
 
 const Index = () => {
   const { config, daysData, isLoading, updateConfig, updateDayData, applyAnnualRollover, saveManualWeeklySummary } = useTimeTracking();
@@ -58,7 +59,7 @@ const Index = () => {
     const lastSeenVersion = getLastSeenVersion();
     if (initialSetup) {
       saveLastSeenVersion(APP_INFO.version);
-    } else if (lastSeenVersion !== APP_INFO.version) {
+    } else if (shouldShowReleaseNotes(lastSeenVersion, APP_INFO.version, initialSetup)) {
       setShowReleaseNotes(true);
     }
     const now = getAppDate();

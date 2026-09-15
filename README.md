@@ -33,9 +33,25 @@ Aplicació **operativa** amb configuració inicial guiada i calendari interactiu
 - Navegació fins al gener de l'any següent per gestionar incidències que es poden arrossegar
 - Estats de dia: laboral, festiu, vacances, assumptes propis, flexibilitat i altres
 - Resums setmanals amb còmput d’hores i flexibilitat guanyada
+- Introducció manual del resum setmanal com a alternativa als horaris diaris
+- Canvi d’any guiat amb còpia de seguretat i gestió del romanent d’AP i FX
 - Gestió de **flexibilitat** (acumulada fins a 25h) i consum per dia
 - Caixa **Altres** per guardar anotacions lliures relacionades amb l'horari
 - Exportació / importació (JSON) i **reset** complet de dades
+
+---
+
+## 🆕 Versió 1.8
+
+La versió **1.8** incorpora un procés guiat per preparar l’any següent i permet introduir el còmput d’hores directament per setmana.
+
+- Còpia de seguretat obligatòria abans de confirmar el canvi d’any.
+- Conservació de l’històric anual i del romanent disponible d’AP i FX.
+- Manteniment de la setmana compartida entre desembre i gener i de les absències ja introduïdes.
+- Càrrega automàtica dels festius oficials que mantenen una data fixa cada any.
+- Resum setmanal manual amb hores teòriques, treballades, diferència, observacions i vista compacta dels dies.
+- Vacances, AP, FX i Altres continuen gestionant-se per dia quan la setmana té còmput manual.
+- Integració dels resums manuals al balanç mensual sense duplicar les hores diàries.
 
 ---
 
@@ -137,6 +153,6 @@ Aquest projecte es distribueix sota la **Apache License 2.0**.
 - Atribució: `NOTICE` (crèdits i avisos)
 
 Autoria: **Rafa Barrachina** (GitHub: `@rbarrachina`)
-Versió actual: **1.6**
+Versió actual: **1.8**
 
 Si redistribueixes el projecte (o una derivació), cal conservar aquests avisos i el crèdit de l’autor.
