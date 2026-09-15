@@ -98,6 +98,22 @@ export function calculateWeeklySummary(
   config: UserConfig
 ): WeeklySummary {
   const weekEnd = endOfWeek(weekStart, { weekStartsOn: 1 });
+  const startDate = format(weekStart, 'yyyy-MM-dd');
+  const manualSummary = config.manualWeeklySummaries?.[startDate];
+  if (manualSummary) {
+    const difference = normalizeHoursDifference(manualSummary.workedHours - manualSummary.theoreticalHours);
+    return {
+      weekNumber: getWeek(weekStart, { weekStartsOn: 1 }),
+      startDate,
+      endDate: format(weekEnd, 'yyyy-MM-dd'),
+      theoreticalHours: manualSummary.theoreticalHours,
+      workedHours: manualSummary.workedHours,
+      difference,
+      flexibilityGained: difference >= MIN_WEEKLY_SURPLUS_FOR_FLEXIBILITY
+        ? Math.min(difference, MAX_FLEXIBILITY_HOURS - config.flexibilityHours)
+        : 0,
+    };
+  }
   const days = eachDayOfInterval({ start: weekStart, end: weekEnd });
   
   let theoreticalHours = 0;
@@ -130,7 +146,7 @@ export function calculateWeeklySummary(
   
   return {
     weekNumber: getWeek(weekStart, { weekStartsOn: 1 }),
-    startDate: format(weekStart, 'yyyy-MM-dd'),
+    startDate,
     endDate: format(weekEnd, 'yyyy-MM-dd'),
     theoreticalHours,
     workedHours,

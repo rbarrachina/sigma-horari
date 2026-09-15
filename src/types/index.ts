@@ -75,6 +75,14 @@ export interface UserConfig {
   otherNotes: string; // Free-form notes for pending schedule-related items
   holidays: string[]; // Array of YYYY-MM-DD
   annualArchives?: AnnualArchive[];
+  manualWeeklySummaries?: Record<string, ManualWeeklySummary>;
+}
+
+export interface ManualWeeklySummary {
+  weekStart: string; // Monday, YYYY-MM-DD
+  theoreticalHours: number;
+  workedHours: number;
+  notes?: string;
 }
 
 export interface WeeklySummary {

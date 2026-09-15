@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import type { UserConfig, DayData } from '@/types';
+import type { UserConfig, DayData, ManualWeeklySummary } from '@/types';
 import { getUserConfig, saveUserConfig, getDaysData, saveDayData, saveDaysData } from '@/lib/storage';
 import { DEFAULT_USER_CONFIG, MAX_FLEXIBILITY_HOURS, MIN_WEEKLY_SURPLUS_FOR_FLEXIBILITY } from '@/lib/constants';
 import { calculateWeeklySummary } from '@/lib/timeCalculations';
@@ -188,6 +188,32 @@ export function useTimeTracking() {
     });
   }, []);
 
+  const saveManualWeeklySummary = useCallback((summary: ManualWeeklySummary | null, weekStartDate: Date) => {
+    setConfig(prev => {
+      const previousSummary = calculateWeeklySummary(weekStartDate, previousDaysDataRef.current, prev);
+      const manualWeeklySummaries = { ...(prev.manualWeeklySummaries || {}) };
+      const key = summary?.weekStart || previousSummary.startDate;
+      if (summary) manualWeeklySummaries[key] = summary;
+      else delete manualWeeklySummaries[key];
+
+      const nextBase = { ...prev, manualWeeklySummaries };
+      const nextSummary = calculateWeeklySummary(weekStartDate, previousDaysDataRef.current, nextBase);
+      const previousEligible = previousSummary.difference >= MIN_WEEKLY_SURPLUS_FOR_FLEXIBILITY ? previousSummary.difference : 0;
+      const nextEligible = nextSummary.difference >= MIN_WEEKLY_SURPLUS_FOR_FLEXIBILITY ? nextSummary.difference : 0;
+      const flexibilityHours = Math.min(
+        MAX_FLEXIBILITY_HOURS,
+        Math.max(0, prev.flexibilityHours + nextEligible - previousEligible)
+      );
+      const updated = {
+        ...nextBase,
+        flexibilityHours,
+        usedFlexHours: Math.min(prev.usedFlexHours, flexibilityHours),
+      };
+      saveUserConfig(updated);
+      return updated;
+    });
+  }, []);
+
   return {
     config,
     daysData,
@@ -200,5 +226,6 @@ export function useTimeTracking() {
     addAPHours,
     toggleHoliday,
     applyAnnualRollover,
+    saveManualWeeklySummary,
   };
 }

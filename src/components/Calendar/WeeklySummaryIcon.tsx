@@ -1,9 +1,10 @@
 import { cn } from '@/lib/utils';
 import type { DayData, UserConfig } from '@/types';
-import { isWeekend, isHoliday, calculateTotalWorkedHours, getTheoreticalHoursForDate } from '@/lib/timeCalculations';
-import { format, eachDayOfInterval } from 'date-fns';
-import { CheckCircle, AlertCircle, XCircle } from 'lucide-react';
-import { hasAbsence, hasPendingAbsence } from '@/lib/absences';
+import { isWeekend, isHoliday, calculateTotalWorkedHours, getTheoreticalHoursForDate, calculateWeeklySummary } from '@/lib/timeCalculations';
+import { format, eachDayOfInterval, startOfDay } from 'date-fns';
+import { CheckCircle, AlertCircle, XCircle, FilePenLine } from 'lucide-react';
+import { hasAbsence, hasApprovedAbsence, hasPendingAbsence } from '@/lib/absences';
+import { getAppDate } from '@/lib/appDate';
 
 interface WeeklySummaryIconProps {
   weekStart: Date;
@@ -14,14 +15,15 @@ interface WeeklySummaryIconProps {
 }
 
 export function WeeklySummaryIcon({ weekStart, weekEnd, daysData, config, onClick }: WeeklySummaryIconProps) {
+  if (startOfDay(weekStart) > startOfDay(getAppDate())) {
+    return null;
+  }
+
   const days = eachDayOfInterval({ start: weekStart, end: weekEnd }).filter(
     (day) => day.getFullYear() === config.calendarYear
   );
+  const manualSummary = config.manualWeeklySummaries?.[format(weekStart, 'yyyy-MM-dd')];
   const hasAnyData = days.some((day) => !!daysData[format(day, 'yyyy-MM-dd')]);
-
-  if (!hasAnyData) {
-    return null;
-  }
   
   // Check if all workdays have data or are properly handled
   let allComplete = true;
@@ -29,6 +31,7 @@ export function WeeklySummaryIcon({ weekStart, weekEnd, daysData, config, onClic
   let totalWorked = 0;
   
   for (const day of days) {
+    if (manualSummary) break;
     if (isWeekend(day)) continue;
     if (isHoliday(day, config.holidays)) continue;
     
@@ -56,12 +59,14 @@ export function WeeklySummaryIcon({ weekStart, weekEnd, daysData, config, onClic
     const hasAnyShift = Boolean(
       (dayData.startTime && dayData.endTime) || (dayData.startTime2 && dayData.endTime2)
     );
-    if (!hasAbsence(dayData, 'vacances') && !hasAnyShift) {
+    if (!hasAbsence(dayData, 'vacances') && !hasApprovedAbsence(dayData) && !hasAnyShift) {
       allComplete = false;
     }
   }
   
-  const difference = totalWorked - totalTheoretical;
+  const difference = manualSummary
+    ? calculateWeeklySummary(weekStart, daysData, config).difference
+    : totalWorked - totalTheoretical;
   const hasNegativeDifference = difference < 0;
   
   return (
@@ -69,21 +74,33 @@ export function WeeklySummaryIcon({ weekStart, weekEnd, daysData, config, onClic
       onClick={onClick}
       className={cn(
         'flex items-center justify-center w-8 h-8 rounded-full transition-all hover:scale-110',
-        hasNegativeDifference
+        !hasAnyData && !manualSummary
+          ? 'border border-muted-foreground/30 bg-muted/40 text-muted-foreground'
+          : manualSummary
+          ? 'bg-[hsl(var(--status-complete))] text-[hsl(var(--status-complete-foreground))]'
+          : hasNegativeDifference
           ? 'bg-destructive text-destructive-foreground'
           : allComplete 
             ? 'bg-[hsl(var(--status-complete))] text-[hsl(var(--status-complete-foreground))]' 
             : 'bg-[hsl(var(--status-deficit))] text-[hsl(var(--status-deficit-foreground))]'
       )}
       title={
-        hasNegativeDifference
+        !hasAnyData && !manualSummary
+          ? 'Introduir resum setmanal'
+          : manualSummary
+          ? 'Resum setmanal introduït manualment'
+          : hasNegativeDifference
           ? "Setmana amb dèficit d'hores"
           : allComplete
             ? 'Setmana completa'
             : 'Setmana amb pendents'
       }
     >
-      {hasNegativeDifference ? (
+      {manualSummary ? (
+        <FilePenLine className="h-4 w-4" />
+      ) : !hasAnyData ? (
+        <FilePenLine className="h-4 w-4" />
+      ) : hasNegativeDifference ? (
         <XCircle className="w-5 h-5" />
       ) : allComplete ? (
           <CheckCircle className="w-5 h-5" />

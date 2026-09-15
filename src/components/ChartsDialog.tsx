@@ -6,11 +6,12 @@ import { MONTH_NAMES_CA } from '@/lib/constants';
 import { calculateDayWorkedHours, calculateTotalWorkedHours, formatHoursMinutes, getDayTypeForDate, getTheoreticalHoursForDate, isHoliday, isWeekend, normalizeHoursDifference } from '@/lib/timeCalculations';
 import { calculateMonthlyFlexibility } from '@/lib/monthlyFlexibility';
 import type { DayData, UserConfig } from '@/types';
-import { eachDayOfInterval, format } from 'date-fns';
+import { addDays, eachDayOfInterval, endOfWeek, format, parseISO } from 'date-fns';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { getAbsenceHours, hasAbsence } from '@/lib/absences';
+import { getAppDate } from '@/lib/appDate';
 
 interface ChartsDialogProps {
   open: boolean;
@@ -55,7 +56,7 @@ const TOTAL_SLOTS = (24 * 60) / SLOT_MINUTES;
 const HISTOGRAM_START_SLOT = (7 * 60) / SLOT_MINUTES; // 07:00
 const HISTOGRAM_END_SLOT = (19 * 60 + 30) / SLOT_MINUTES; // 19:30
 
-type MonthlyBalanceItem = {
+export type MonthlyBalanceItem = {
   month: string;
   worked: number;
   theoretical: number;
@@ -76,6 +77,77 @@ const PRESENCE_TOOLTIP_LABELS: Record<'entries' | 'exits', string> = {
 
 type DistributionKey = keyof typeof distributionChartConfig;
 type DistributionMode = 'days' | 'hours';
+
+export function calculateMonthlyBalance(
+  config: UserConfig,
+  daysData: Record<string, DayData>,
+  referenceDate = getAppDate()
+): MonthlyBalanceItem[] {
+  const today = new Date(referenceDate);
+  today.setHours(0, 0, 0, 0);
+  const monthlyFlexibility = calculateMonthlyFlexibility(
+    config.calendarYear,
+    daysData,
+    config,
+    today
+  );
+
+  const balances = MONTH_NAMES_CA.map((month, monthIndex) => {
+    const monthStart = new Date(config.calendarYear, monthIndex, 1);
+    if (monthStart > today) {
+      return { month, worked: 0, theoretical: 0, difference: 0, flexibility: 0, isFutureMonth: true };
+    }
+
+    const daysInMonth = new Date(config.calendarYear, monthIndex + 1, 0).getDate();
+    const isCurrentMonth = config.calendarYear === today.getFullYear() && monthIndex === today.getMonth();
+    const maxDay = isCurrentMonth ? today.getDate() : daysInMonth;
+    let worked = 0;
+    let theoretical = 0;
+
+    for (let day = 1; day <= maxDay; day++) {
+      const currentDate = new Date(config.calendarYear, monthIndex, day);
+      const dayData = daysData[format(currentDate, 'yyyy-MM-dd')];
+      if (isWeekend(currentDate) || isHoliday(currentDate, config.holidays) || hasAbsence(dayData, 'vacances')) continue;
+      theoretical += getTheoreticalHoursForDate(currentDate, config);
+      worked += calculateTotalWorkedHours(dayData);
+    }
+
+    return {
+      month,
+      worked,
+      theoretical,
+      difference: normalizeHoursDifference(worked - theoretical),
+      flexibility: monthlyFlexibility[monthIndex],
+      isFutureMonth: false,
+    };
+  });
+
+  Object.values(config.manualWeeklySummaries || {}).forEach((manual) => {
+    const weekStart = parseISO(manual.weekStart);
+    if (weekStart > today) return;
+    const accountingDate = addDays(weekStart, 4);
+    if (accountingDate.getFullYear() !== config.calendarYear) return;
+
+    for (const day of eachDayOfInterval({ start: weekStart, end: endOfWeek(weekStart, { weekStartsOn: 1 }) })) {
+      if (day > today || day.getFullYear() !== config.calendarYear || isWeekend(day) || isHoliday(day, config.holidays)) continue;
+      const dayData = daysData[format(day, 'yyyy-MM-dd')];
+      if (hasAbsence(dayData, 'vacances')) continue;
+      balances[day.getMonth()].theoretical -= getTheoreticalHoursForDate(day, config);
+      balances[day.getMonth()].worked -= calculateTotalWorkedHours(dayData);
+    }
+
+    balances[accountingDate.getMonth()].theoretical += manual.theoreticalHours;
+    balances[accountingDate.getMonth()].worked += manual.workedHours;
+    balances[accountingDate.getMonth()].isFutureMonth = false;
+  });
+
+  return balances.map(item => ({
+    ...item,
+    worked: normalizeHoursDifference(item.worked),
+    theoretical: normalizeHoursDifference(item.theoretical),
+    difference: normalizeHoursDifference(item.worked - item.theoretical),
+  }));
+}
 
 const timeToSlotIndex = (time: string): number | null => {
   const [hoursStr, minutesStr] = time.split(':');
@@ -119,66 +191,10 @@ type DistributionItem = {
 
 export function ChartsDialog({ open, config, daysData, onClose }: ChartsDialogProps) {
   const [distributionMode, setDistributionMode] = useState<DistributionMode>('days');
-  const monthlyBalance = useMemo<MonthlyBalanceItem[]>(() => {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const monthlyFlexibility = calculateMonthlyFlexibility(
-      config.calendarYear,
-      daysData,
-      config,
-      today
-    );
-
-    return MONTH_NAMES_CA.map((month, monthIndex) => {
-      const monthStart = new Date(config.calendarYear, monthIndex, 1);
-      if (monthStart > today) {
-        return {
-          month,
-          worked: 0,
-          theoretical: 0,
-          difference: 0,
-          flexibility: 0,
-          isFutureMonth: true,
-        };
-      }
-
-      const daysInMonth = new Date(config.calendarYear, monthIndex + 1, 0).getDate();
-      const isCurrentMonth =
-        config.calendarYear === today.getFullYear() && monthIndex === today.getMonth();
-      const maxDay = isCurrentMonth ? today.getDate() : daysInMonth;
-      let worked = 0;
-      let theoretical = 0;
-
-      for (let day = 1; day <= maxDay; day++) {
-        const currentDate = new Date(config.calendarYear, monthIndex, day);
-        const dateKey = format(currentDate, 'yyyy-MM-dd');
-        const dayData = daysData[dateKey];
-
-        if (isWeekend(currentDate) || isHoliday(currentDate, config.holidays)) {
-          continue;
-        }
-
-        if (hasAbsence(dayData, 'vacances')) {
-          continue;
-        }
-
-        theoretical += getTheoreticalHoursForDate(currentDate, config);
-        worked += calculateTotalWorkedHours(dayData);
-      }
-
-      return {
-        month,
-        worked,
-        theoretical,
-        difference: normalizeHoursDifference(worked - theoretical),
-        flexibility: monthlyFlexibility[monthIndex],
-        isFutureMonth: false,
-      };
-    });
-  }, [config, daysData]);
+  const monthlyBalance = useMemo(() => calculateMonthlyBalance(config, daysData, getAppDate()), [config, daysData]);
 
   const presenceHistogram = useMemo(() => {
-    const today = new Date();
+    const today = getAppDate();
     today.setHours(0, 0, 0, 0);
 
     const slots = Array.from({ length: TOTAL_SLOTS }, (_, slotIndex) => ({
@@ -233,7 +249,7 @@ export function ChartsDialog({ open, config, daysData, onClose }: ChartsDialogPr
   }, [config.calendarYear, daysData]);
 
   const distributionByDays = useMemo<DistributionItem[]>(() => {
-    const today = new Date();
+    const today = getAppDate();
     today.setHours(0, 0, 0, 0);
     const start = new Date(config.calendarYear, 0, 1);
     const end = new Date(config.calendarYear, 11, 31);
@@ -290,7 +306,7 @@ export function ChartsDialog({ open, config, daysData, onClose }: ChartsDialogPr
   }, [config, daysData]);
 
   const distributionByHours = useMemo<DistributionItem[]>(() => {
-    const today = new Date();
+    const today = getAppDate();
     today.setHours(0, 0, 0, 0);
     const start = new Date(config.calendarYear, 0, 1);
     const end = new Date(config.calendarYear, 11, 31);

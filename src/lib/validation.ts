@@ -89,6 +89,15 @@ const UserConfigSchema = z.object({
     remainingFlexHours: z.number().min(0).max(500),
     closedAt: z.string(),
   })).max(100).optional(),
+  manualWeeklySummaries: z.record(
+    z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+    z.object({
+      weekStart: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+      theoreticalHours: z.number().min(0).max(168),
+      workedHours: z.number().min(0).max(168),
+      notes: z.string().max(500).optional(),
+    })
+  ).optional(),
 });
 
 // Schema for DaysData record

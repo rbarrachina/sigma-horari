@@ -7,7 +7,7 @@ import { DayDetailDialog } from './DayDetailDialog';
 import { WeeklySummaryIcon } from './WeeklySummaryIcon';
 import { WeeklySummaryDialog } from './WeeklySummaryDialog';
 import { MONTH_NAMES_CA } from '@/lib/constants';
-import type { DayData, UserConfig } from '@/types';
+import type { DayData, ManualWeeklySummary, UserConfig } from '@/types';
 import { hasAbsence } from '@/lib/absences';
 import { getAppDate } from '@/lib/appDate';
 
@@ -16,9 +16,10 @@ interface CalendarGridProps {
   config: UserConfig;
   onDayUpdate: (dayData: DayData) => void;
   onDisplayedDateChange?: (date: Date) => void;
+  onManualWeeklySummarySave: (summary: ManualWeeklySummary | null, weekStart: Date) => void;
 }
 
-export function CalendarGrid({ daysData, config, onDayUpdate, onDisplayedDateChange }: CalendarGridProps) {
+export function CalendarGrid({ daysData, config, onDayUpdate, onDisplayedDateChange, onManualWeeklySummarySave }: CalendarGridProps) {
   const getInitialDate = (year: number) => {
     const today = getAppDate();
     const isInVisibleRange = today.getFullYear() === year
@@ -133,6 +134,8 @@ export function CalendarGrid({ daysData, config, onDayUpdate, onDisplayedDateCha
               {week.map((day) => {
                 const dateStr = format(day, 'yyyy-MM-dd');
                 const isInCalendarYear = isInEditableCalendarRange(day);
+                const weekKey = format(startOfWeek(day, { weekStartsOn: 1 }), 'yyyy-MM-dd');
+                const hasManualWeeklySummary = Boolean(config.manualWeeklySummaries?.[weekKey]);
                 return (
                   <CalendarDay
                     key={dateStr}
@@ -142,6 +145,7 @@ export function CalendarGrid({ daysData, config, onDayUpdate, onDisplayedDateCha
                     isCurrentMonth={isSameMonth(day, currentDate)}
                     isInCalendarYear={isInCalendarYear}
                     isToday={isToday(day)}
+                    hasManualWeeklySummary={hasManualWeeklySummary}
                     onClick={() => setSelectedDate(day)}
                   />
                 );
@@ -180,6 +184,7 @@ export function CalendarGrid({ daysData, config, onDayUpdate, onDisplayedDateCha
         daysData={daysData}
         config={config}
         onClose={() => setSelectedWeek(null)}
+        onManualSummarySave={onManualWeeklySummarySave}
       />
     </div>
   );

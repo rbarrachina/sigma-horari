@@ -101,6 +101,7 @@ export function createNextYearConfig(
     usedFlexHours: 0,
     schedulePeriods: shiftPeriods(config.schedulePeriods, targetYear),
     holidays: getFixedCataloniaHolidays(targetYear),
+    manualWeeklySummaries: {},
     annualArchives: [...(config.annualArchives || []).filter(item => item.year !== archive.year), archive],
   };
 }

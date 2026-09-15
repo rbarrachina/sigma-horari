@@ -24,7 +24,7 @@ import { getAppDate, getSimulatedDate } from '@/lib/appDate';
 import { isAnnualRolloverDue } from '@/lib/annualRollover';
 
 const Index = () => {
-  const { config, daysData, isLoading, updateConfig, updateDayData, applyAnnualRollover } = useTimeTracking();
+  const { config, daysData, isLoading, updateConfig, updateDayData, applyAnnualRollover, saveManualWeeklySummary } = useTimeTracking();
   const [chartsOpen, setChartsOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [onboardingStep, setOnboardingStep] = useState(0);
@@ -171,6 +171,7 @@ const Index = () => {
             config={config}
             onDayUpdate={updateDayData}
             onDisplayedDateChange={setDisplayedDate}
+            onManualWeeklySummarySave={saveManualWeeklySummary}
           />
         )}
         

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { format } from 'date-fns';
+import { format, startOfWeek } from 'date-fns';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -50,6 +50,9 @@ export function DayDetailDialog({ date, dayData, config, requestedVacationDays, 
   const [dateRuleError, setDateRuleError] = useState('');
 
   const theoreticalHours = date ? getTheoreticalHoursForDate(date, config) : 0;
+  const hasManualWeeklySummary = date
+    ? Boolean(config.manualWeeklySummaries?.[format(startOfWeek(date, { weekStartsOn: 1 }), 'yyyy-MM-dd')])
+    : false;
 
   const getCalculatedEndTime = (start: string) => {
     if (!start) return '';
@@ -315,10 +318,10 @@ export function DayDetailDialog({ date, dayData, config, requestedVacationDays, 
     );
     const newDayData: DayData = {
       date: format(date, 'yyyy-MM-dd'),
-      startTime: absenceType === 'vacances' ? null : (startTime || null),
-      endTime: absenceType === 'vacances' ? null : (endTime || null),
-      startTime2: absenceType === 'vacances' ? null : (startTime2 || null),
-      endTime2: absenceType === 'vacances' ? null : (endTime2 || null),
+      startTime: hasManualWeeklySummary ? (dayData?.startTime ?? null) : absenceType === 'vacances' ? null : (startTime || null),
+      endTime: hasManualWeeklySummary ? (dayData?.endTime ?? null) : absenceType === 'vacances' ? null : (endTime || null),
+      startTime2: hasManualWeeklySummary ? (dayData?.startTime2 ?? null) : absenceType === 'vacances' ? null : (startTime2 || null),
+      endTime2: hasManualWeeklySummary ? (dayData?.endTime2 ?? null) : absenceType === 'vacances' ? null : (endTime2 || null),
       dayType,
       dayStatus: getDayStatus(),
       requestStatus: getLegacyRequestStatus(normalizedAbsences),
@@ -355,8 +358,14 @@ export function DayDetailDialog({ date, dayData, config, requestedVacationDays, 
             {holiday && <Badge variant="destructive">Festiu</Badge>}
           </div>
 
+          {hasManualWeeklySummary && (
+            <div className="rounded-lg border bg-muted/40 p-3 text-sm text-muted-foreground">
+              Aquesta setmana té un resum manual. Per introduir hores diàries, primer has d’eliminar l’edició setmanal.
+            </div>
+          )}
+
           {/* Start and end time */}
-          {absenceType !== 'vacances' && (startTime || endTime || showSecondShift) && (
+          {!hasManualWeeklySummary && absenceType !== 'vacances' && (startTime || endTime || showSecondShift) && (
             <div className="space-y-3">
               <div className="grid grid-cols-[1fr_1fr_auto_auto] gap-4 items-end">
               <div className="space-y-2">
@@ -470,7 +479,7 @@ export function DayDetailDialog({ date, dayData, config, requestedVacationDays, 
           )}
 
           {/* Show add time button when no times */}
-          {absenceType !== 'vacances' && !startTime && !endTime && !showSecondShift && (
+          {!hasManualWeeklySummary && absenceType !== 'vacances' && !startTime && !endTime && !showSecondShift && (
             <Button
               type="button"
               variant="outline"
@@ -831,14 +840,14 @@ export function DayDetailDialog({ date, dayData, config, requestedVacationDays, 
           )}
 
           {/* Summary */}
-          <div className="p-4 bg-muted rounded-lg">
+          {!hasManualWeeklySummary && <div className="p-4 bg-muted rounded-lg">
              <div className="text-[17px] font-semibold space-y-1">
               <p>Hores totals: <strong>{formatHoursMinutes(totalWorkedHours)}</strong></p>
               <p className={difference >= 0 ? 'text-[hsl(var(--status-complete))]' : 'text-[hsl(var(--status-deficit))]'}>
                 Diferència: <strong>{difference >= 0 ? '+' : '-'}{formatHoursMinutes(difference)}</strong>
               </p>
             </div>
-          </div>
+          </div>}
         </div>
 
         <DialogFooter className="shrink-0 border-t pt-4">
