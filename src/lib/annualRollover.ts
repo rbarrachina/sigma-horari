@@ -1,6 +1,5 @@
 import { format, startOfWeek } from 'date-fns';
 import type { AnnualArchive, DayData, SchedulePeriod, UserConfig } from '@/types';
-import { getDayAbsences } from './absences';
 
 export function isAnnualRolloverDue(config: UserConfig, today: Date): boolean {
   return today.getFullYear() > config.calendarYear;
@@ -50,22 +49,10 @@ export function getFixedCataloniaHolidays(year: number): string[] {
 export function createAnnualArchive(
   config: UserConfig,
   closedAt: Date,
-  daysData: Record<string, DayData> = {},
+  _daysData: Record<string, DayData> = {},
 ): AnnualArchive {
-  const januaryPrefix = `${config.calendarYear + 1}-01-`;
-  const januaryAbsences = Object.entries(daysData)
-    .filter(([date]) => date.startsWith(januaryPrefix))
-    .flatMap(([, day]) => getDayAbsences(day));
-  const januaryAPHours = januaryAbsences
-    .filter(absence => absence.type === 'assumpte_propi')
-    .reduce((sum, absence) => sum + (absence.hours || 0), 0);
-  const januaryFlexHours = januaryAbsences
-    .filter(absence => absence.type === 'flexibilitat')
-    .reduce((sum, absence) => sum + (absence.hours || 0), 0);
   const remainingAPHours = Math.max(0, config.totalAPHours - config.usedAPHours);
   const remainingFlexHours = Math.max(0, config.flexibilityHours - config.usedFlexHours);
-  const transferredAPHours = remainingAPHours + januaryAPHours;
-  const transferredFlexHours = remainingFlexHours + januaryFlexHours;
   return {
     year: config.calendarYear,
     totalVacationDays: config.totalVacationDays,
@@ -74,8 +61,8 @@ export function createAnnualArchive(
     usedAPHours: config.usedAPHours,
     totalFlexHours: config.flexibilityHours,
     usedFlexHours: config.usedFlexHours,
-    transferredAPHours,
-    transferredFlexHours,
+    transferredAPHours: remainingAPHours,
+    transferredFlexHours: remainingFlexHours,
     remainingAPHours,
     remainingFlexHours,
     closedAt: closedAt.toISOString(),

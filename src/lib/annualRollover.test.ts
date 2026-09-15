@@ -18,7 +18,7 @@ describe('annual rollover dates', () => {
     expect(isCarryoverSummaryVisible(2026, new Date(2027, 1, 1))).toBe(false);
   });
 
-  it('restores January entries into the maximum transferable balance', () => {
+  it('does not add January AP usage back into the transferable balance', () => {
     const config = { ...DEFAULT_USER_CONFIG, usedAPHours: 84 };
     const archive = createAnnualArchive(config, new Date(2027, 0, 10), {
       '2027-01-08': {
@@ -28,7 +28,7 @@ describe('annual rollover dates', () => {
       },
     });
     expect(archive.remainingAPHours).toBe(6);
-    expect(archive.transferredAPHours).toBe(8);
+    expect(archive.transferredAPHours).toBe(6);
   });
 
   it('removes old daily records but keeps days relevant to the new calendar', () => {
@@ -116,9 +116,9 @@ describe('annual rollover dates', () => {
     expect(next.usedAPHours).toBe(0);
     expect(next.usedFlexHours).toBe(0);
     expect(archive?.remainingAPHours).toBe(78);
-    expect(archive?.transferredAPHours).toBe(80);
+    expect(archive?.transferredAPHours).toBe(78);
     expect(archive?.remainingFlexHours).toBe(15);
-    expect(archive?.transferredFlexHours).toBe(16);
+    expect(archive?.transferredFlexHours).toBe(15);
     expect(prepared['2027-01-08'].absences?.[0].sourceYear).toBe(2026);
     expect(prepared['2027-01-11'].absences?.[0].sourceYear).toBe(2026);
     expect(prepared['2027-01-12'].absences?.[0].comment).toBe('Visita mèdica');
