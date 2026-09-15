@@ -647,9 +647,11 @@ export function SettingsDialog({
               <div className="text-sm text-muted-foreground">
                 <p className="font-medium text-foreground mb-1">Avís de privacitat</p>
                 <p>
-                  Totes les dades es guarden localment al teu navegador (localStorage). 
-                  No s'envien a cap servidor extern. Fes còpies de seguretat regularment 
-                  i esborra les dades si fas servir un ordinador compartit.
+                  Les dades horàries es guarden localment al teu navegador (localStorage)
+                  i no s&apos;envien a cap servidor extern. L&apos;aplicació utilitza Vercel Web
+                  Analytics per recollir estadístiques de visita anònimes i sense galetes.
+                  Fes còpies de seguretat regularment i esborra les dades si fas servir un
+                  ordinador compartit.
                 </p>
               </div>
             </div>

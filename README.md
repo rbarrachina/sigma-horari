@@ -117,6 +117,8 @@ npm run test      # executa tests amb Vitest
 ## 🔐 On es guarden les dades?
 
 L’aplicació **guarda la informació al navegador** (sense backend), via **localStorage**.
+Les dades horàries no s’envien a cap servidor. El desplegament de Vercel utilitza
+**Vercel Web Analytics** per recollir estadístiques de visita anònimes i sense galetes.
 
 Claus utilitzades:
 
