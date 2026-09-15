@@ -70,9 +70,7 @@ export function WeeklySummaryDialog({
 
   if (!weekStart || !weekEnd) return null;
 
-  const days = eachDayOfInterval({ start: weekStart, end: weekEnd }).filter(
-    (day) => day.getFullYear() === config.calendarYear
-  );
+  const days = eachDayOfInterval({ start: weekStart, end: weekEnd });
   const weekKey = format(weekStart, 'yyyy-MM-dd');
   const manualSummary = config.manualWeeklySummaries?.[weekKey];
   const displayStart = days[0] ?? weekStart;

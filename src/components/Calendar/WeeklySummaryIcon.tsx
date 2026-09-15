@@ -19,9 +19,7 @@ export function WeeklySummaryIcon({ weekStart, weekEnd, daysData, config, onClic
     return null;
   }
 
-  const days = eachDayOfInterval({ start: weekStart, end: weekEnd }).filter(
-    (day) => day.getFullYear() === config.calendarYear
-  );
+  const days = eachDayOfInterval({ start: weekStart, end: weekEnd });
   const manualSummary = config.manualWeeklySummaries?.[format(weekStart, 'yyyy-MM-dd')];
   const hasAnyData = days.some((day) => !!daysData[format(day, 'yyyy-MM-dd')]);
   

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { createAnnualArchive, getFixedCataloniaHolidays, isAnnualRolloverDue, isCarryoverSelectable, isCarryoverSummaryVisible, prepareDaysForNewYear } from './annualRollover';
+import { createAnnualArchive, createNextYearConfig, getFixedCataloniaHolidays, isAnnualRolloverDue, isCarryoverSelectable, isCarryoverSummaryVisible, prepareDaysForNewYear } from './annualRollover';
 import { DEFAULT_USER_CONFIG } from './constants';
 
 describe('annual rollover dates', () => {
@@ -37,6 +37,8 @@ describe('annual rollover dates', () => {
       dayStatus: 'laboral' as const, requestStatus: null,
     });
     const prepared = prepareDaysForNewYear({
+      '2026-12-27': makeDay('2026-12-27'),
+      '2026-12-28': makeDay('2026-12-28'),
       '2026-12-31': makeDay('2026-12-31'),
       '2027-01-10': {
         ...makeDay('2027-01-10'),
@@ -48,7 +50,7 @@ describe('annual rollover dates', () => {
       '2028-02-01': makeDay('2028-02-01'),
     }, 2026, 2027);
 
-    expect(Object.keys(prepared)).toEqual(['2027-01-10', '2027-03-01', '2028-01-05']);
+    expect(Object.keys(prepared)).toEqual(['2026-12-28', '2026-12-31', '2027-01-10', '2027-03-01', '2028-01-05']);
     expect(prepared['2027-01-10'].absences?.[0].sourceYear).toBe(2026);
   });
 
@@ -58,5 +60,22 @@ describe('annual rollover dates', () => {
       '2027-10-12', '2027-11-01', '2027-12-06', '2027-12-08', '2027-12-25',
     ]);
     expect(DEFAULT_USER_CONFIG.holidays).toEqual(getFixedCataloniaHolidays(2026));
+  });
+
+  it('keeps only the manual summary shared with the first week of the new year', () => {
+    const config = {
+      ...DEFAULT_USER_CONFIG,
+      manualWeeklySummaries: {
+        '2026-12-21': { weekStart: '2026-12-21', theoreticalHours: 35, workedHours: 35 },
+        '2026-12-28': { weekStart: '2026-12-28', theoreticalHours: 28, workedHours: 28 },
+      },
+    };
+
+    const next = createNextYearConfig(config, 2027, {
+      totalVacationDays: 25,
+      totalAPHours: 90,
+    }, new Date(2027, 0, 1));
+
+    expect(Object.keys(next.manualWeeklySummaries || {})).toEqual(['2026-12-28']);
   });
 });

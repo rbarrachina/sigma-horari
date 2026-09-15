@@ -69,8 +69,11 @@ export function getScheduleTypeForDate(date: Date, config: UserConfig): Schedule
 export function getTheoreticalHoursForDate(date: Date, config: UserConfig): number {
   const dayKey = getDayOfWeekKey(date);
   if (!dayKey) return 0; // Weekend
-  
-  const scheduleType = getScheduleTypeForDate(date, config);
+
+  const scheduleDate = date.getFullYear() === config.calendarYear
+    ? date
+    : new Date(config.calendarYear, date.getMonth(), date.getDate());
+  const scheduleType = getScheduleTypeForDate(scheduleDate, config);
   if (!scheduleType) return 7.5; // Default to winter if not defined
   
   return SCHEDULE_HOURS[scheduleType];

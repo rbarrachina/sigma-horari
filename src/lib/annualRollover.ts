@@ -1,4 +1,4 @@
-import { format } from 'date-fns';
+import { format, startOfWeek } from 'date-fns';
 import type { AnnualArchive, DayData, SchedulePeriod, UserConfig } from '@/types';
 import { getDayAbsences } from './absences';
 
@@ -90,6 +90,11 @@ export function createNextYearConfig(
   daysData: Record<string, DayData> = {},
 ): UserConfig {
   const archive = createAnnualArchive(config, closedAt, daysData);
+  const transitionWeekStart = format(
+    startOfWeek(new Date(targetYear, 0, 1), { weekStartsOn: 1 }),
+    'yyyy-MM-dd'
+  );
+  const transitionSummary = config.manualWeeklySummaries?.[transitionWeekStart];
   return {
     ...config,
     calendarYear: targetYear,
@@ -101,7 +106,9 @@ export function createNextYearConfig(
     usedFlexHours: 0,
     schedulePeriods: shiftPeriods(config.schedulePeriods, targetYear),
     holidays: getFixedCataloniaHolidays(targetYear),
-    manualWeeklySummaries: {},
+    manualWeeklySummaries: transitionSummary
+      ? { [transitionWeekStart]: transitionSummary }
+      : {},
     annualArchives: [...(config.annualArchives || []).filter(item => item.year !== archive.year), archive],
   };
 }
@@ -130,9 +137,16 @@ export function prepareDaysForNewYear(
   targetYear: number,
 ): Record<string, DayData> {
   const markedDays = markJanuaryCarryovers(daysData, sourceYear);
+  const transitionWeekStart = format(
+    startOfWeek(new Date(targetYear, 0, 1), { weekStartsOn: 1 }),
+    'yyyy-MM-dd'
+  );
   return Object.fromEntries(Object.entries(markedDays).filter(([date]) => {
     const year = Number(date.slice(0, 4));
     const month = Number(date.slice(5, 7));
-    return year === targetYear || (year === targetYear + 1 && month === 1);
+    const isPreviousYearTransitionDay = year === sourceYear && date >= transitionWeekStart;
+    return isPreviousYearTransitionDay
+      || year === targetYear
+      || (year === targetYear + 1 && month === 1);
   }));
 }

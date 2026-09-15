@@ -11,12 +11,13 @@ interface CalendarDayProps {
   config: UserConfig;
   isCurrentMonth: boolean;
   isInCalendarYear: boolean;
+  isReadOnly?: boolean;
   isToday: boolean;
   hasManualWeeklySummary: boolean;
   onClick: () => void;
 }
 
-export function CalendarDay({ date, dayData, config, isCurrentMonth, isInCalendarYear, isToday, hasManualWeeklySummary, onClick }: CalendarDayProps) {
+export function CalendarDay({ date, dayData, config, isCurrentMonth, isInCalendarYear, isReadOnly = false, isToday, hasManualWeeklySummary, onClick }: CalendarDayProps) {
   const weekend = isWeekend(date);
   const holiday = isHoliday(date, config.holidays);
   const dateStr = format(date, 'yyyy-MM-dd');
@@ -132,14 +133,14 @@ export function CalendarDay({ date, dayData, config, isCurrentMonth, isInCalenda
   return (
     <button
       onClick={onClick}
-      disabled={weekend || !isInCalendarYear}
+      disabled={weekend || !isInCalendarYear || isReadOnly}
       className={cn(
         'relative p-2 h-20 w-full rounded-lg transition-all duration-200 border',
         'hover:shadow-md hover:scale-[1.02] focus:outline-none focus:ring-2 focus:ring-primary',
         getStatusColor(),
         !isCurrentMonth && 'opacity-40',
         isToday && 'ring-2 ring-primary ring-offset-2',
-        (weekend || !isInCalendarYear) && 'cursor-default hover:scale-100 hover:shadow-none'
+        (weekend || !isInCalendarYear || isReadOnly) && 'cursor-default hover:scale-100 hover:shadow-none'
       )}
     >
       <div className="flex flex-col h-full">

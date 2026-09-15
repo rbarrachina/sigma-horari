@@ -50,6 +50,10 @@ export function CalendarGrid({ daysData, config, onDayUpdate, onDisplayedDateCha
     return date.getFullYear() === calendarYear
       || (date.getFullYear() === calendarYear + 1 && date.getMonth() === 0);
   };
+  const isPreviousYearTransitionDay = (date: Date) => {
+    const firstWeekStart = startOfWeek(new Date(calendarYear, 0, 1), { weekStartsOn: 1 });
+    return date.getFullYear() === calendarYear - 1 && date >= firstWeekStart;
+  };
 
   const goToPreviousMonth = () => {
     const newDate = subMonths(currentDate, 1);
@@ -134,16 +138,19 @@ export function CalendarGrid({ daysData, config, onDayUpdate, onDisplayedDateCha
               {week.map((day) => {
                 const dateStr = format(day, 'yyyy-MM-dd');
                 const isInCalendarYear = isInEditableCalendarRange(day);
+                const isTransitionDay = isPreviousYearTransitionDay(day);
+                const isVisibleDay = isInCalendarYear || isTransitionDay;
                 const weekKey = format(startOfWeek(day, { weekStartsOn: 1 }), 'yyyy-MM-dd');
                 const hasManualWeeklySummary = Boolean(config.manualWeeklySummaries?.[weekKey]);
                 return (
                   <CalendarDay
                     key={dateStr}
                     date={day}
-                    dayData={isInCalendarYear ? daysData[dateStr] || null : null}
+                    dayData={isVisibleDay ? daysData[dateStr] || null : null}
                     config={config}
                     isCurrentMonth={isSameMonth(day, currentDate)}
-                    isInCalendarYear={isInCalendarYear}
+                    isInCalendarYear={isVisibleDay}
+                    isReadOnly={isTransitionDay}
                     isToday={isToday(day)}
                     hasManualWeeklySummary={hasManualWeeklySummary}
                     onClick={() => setSelectedDate(day)}
