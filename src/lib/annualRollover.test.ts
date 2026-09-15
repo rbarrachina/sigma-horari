@@ -78,4 +78,49 @@ describe('annual rollover dates', () => {
 
     expect(Object.keys(next.manualWeeklySummaries || {})).toEqual(['2026-12-28']);
   });
+
+  it('keeps January AP, FX and other entries while charging carryovers to the previous year', () => {
+    const config = {
+      ...DEFAULT_USER_CONFIG,
+      usedAPHours: 12,
+      flexibilityHours: 20,
+      usedFlexHours: 5,
+    };
+    const makeJanuaryDay = (date: string, absence: {
+      type: 'assumpte_propi' | 'flexibilitat' | 'altres';
+      hours: number;
+      comment?: string;
+      requestStatus: 'aprovat';
+    }) => ({
+      date,
+      startTime: null,
+      endTime: null,
+      dayType: 'presencial' as const,
+      dayStatus: absence.type,
+      requestStatus: 'aprovat' as const,
+      absences: [absence],
+    });
+    const januaryDays = {
+      '2027-01-08': makeJanuaryDay('2027-01-08', { type: 'assumpte_propi', hours: 2, requestStatus: 'aprovat' }),
+      '2027-01-11': makeJanuaryDay('2027-01-11', { type: 'flexibilitat', hours: 1, requestStatus: 'aprovat' }),
+      '2027-01-12': makeJanuaryDay('2027-01-12', { type: 'altres', hours: 1, comment: 'Visita mèdica', requestStatus: 'aprovat' }),
+    };
+
+    const next = createNextYearConfig(config, 2027, {
+      totalVacationDays: 25,
+      totalAPHours: 90,
+    }, new Date(2027, 0, 8), januaryDays);
+    const prepared = prepareDaysForNewYear(januaryDays, 2026, 2027);
+    const archive = next.annualArchives?.find(item => item.year === 2026);
+
+    expect(next.usedAPHours).toBe(0);
+    expect(next.usedFlexHours).toBe(0);
+    expect(archive?.remainingAPHours).toBe(78);
+    expect(archive?.transferredAPHours).toBe(80);
+    expect(archive?.remainingFlexHours).toBe(15);
+    expect(archive?.transferredFlexHours).toBe(16);
+    expect(prepared['2027-01-08'].absences?.[0].sourceYear).toBe(2026);
+    expect(prepared['2027-01-11'].absences?.[0].sourceYear).toBe(2026);
+    expect(prepared['2027-01-12'].absences?.[0].comment).toBe('Visita mèdica');
+  });
 });
