@@ -12,10 +12,11 @@ interface CalendarDayProps {
   isCurrentMonth: boolean;
   isInCalendarYear: boolean;
   isToday: boolean;
+  hasManualWeeklySummary: boolean;
   onClick: () => void;
 }
 
-export function CalendarDay({ date, dayData, config, isCurrentMonth, isInCalendarYear, isToday, onClick }: CalendarDayProps) {
+export function CalendarDay({ date, dayData, config, isCurrentMonth, isInCalendarYear, isToday, hasManualWeeklySummary, onClick }: CalendarDayProps) {
   const weekend = isWeekend(date);
   const holiday = isHoliday(date, config.holidays);
   const dateStr = format(date, 'yyyy-MM-dd');
@@ -27,6 +28,9 @@ export function CalendarDay({ date, dayData, config, isCurrentMonth, isInCalenda
     if (weekend) return 'bg-[hsl(var(--status-weekend))] text-foreground';
     // Holiday = purple
     if (holiday) return 'bg-[hsl(var(--status-holiday))] text-[hsl(var(--status-holiday-foreground))]';
+    if (hasManualWeeklySummary) {
+      return 'bg-[hsl(var(--status-complete))] text-[hsl(var(--status-complete-foreground))]';
+    }
     
     // Vacances = blue
     if (hasAbsence(dayData, 'vacances')) {
@@ -150,7 +154,11 @@ export function CalendarDay({ date, dayData, config, isCurrentMonth, isInCalenda
         
         {!weekend && isInCalendarYear && (
           <div className="flex-1 flex flex-col justify-end">
-            {shifts.length > 0 && (
+            {holiday ? (
+              <div className="text-xs opacity-80 font-medium">Festiu</div>
+            ) : hasManualWeeklySummary ? (
+              <div className="text-xs opacity-80 font-medium">Edició setmanal</div>
+            ) : shifts.length > 0 && (
               <div className="text-xs opacity-80 space-y-0.5">
                 {shifts.map((shift) => (
                   <div key={shift}>{shift}</div>

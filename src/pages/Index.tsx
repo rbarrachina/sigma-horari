@@ -21,7 +21,7 @@ import { isAnnualBackupReminderDue } from '@/lib/backupReminder';
 import { Download } from 'lucide-react';
 
 const Index = () => {
-  const { config, daysData, isLoading, updateConfig, updateDayData } = useTimeTracking();
+  const { config, daysData, isLoading, updateConfig, updateDayData, saveManualWeeklySummary } = useTimeTracking();
   const [chartsOpen, setChartsOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [onboardingStep, setOnboardingStep] = useState(0);
@@ -149,6 +149,7 @@ const Index = () => {
             daysData={daysData}
             config={config}
             onDayUpdate={updateDayData}
+            onManualWeeklySummarySave={saveManualWeeklySummary}
           />
         )}
         
